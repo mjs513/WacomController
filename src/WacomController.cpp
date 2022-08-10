@@ -323,11 +323,12 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
     for (uint8_t i = 0; i < touch_count_; i++) {
       bool touch = data[offset + 3] & 0x80;
       if (touch) {
+		offset = (8 * i) + 2;
         touch_x_[i] = ((data[offset + 3] << 8) | (data[offset + 4])) & 0x7ff;
         touch_y_[i] = ((data[offset + 5] << 8) | (data[offset + 6])) & 0x7ff;
         if (debugPrint_) Serial.printf(" %u:(%u, %u)", i, touch_x_[i], touch_y_[i]);
         //touch_count_++;
-  		  offset += (data[1] & 0x80) ? 8 : 9;
+  		//offset += (data[1] & 0x80) ? 8 : 9;
       }
     }
     if (debugPrint_) Serial.println();
