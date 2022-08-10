@@ -317,17 +317,16 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
   //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
   uint8_t offset = 0; 
   if (len == 64) {
-    buttons = data[1] & 0xf;
     if(data[2] == 0x80) buttons = data[3];
-    touch_count_ = 0;
+    touch_count_ = data[1];
     if (debugPrint_) Serial.printf("INTOSH PT(64): BTNS: %x", buttons);
-    for (uint8_t i = 0; i < 2; i++) {
+    for (uint8_t i = 0; i < touch_count_; i++) {
       bool touch = data[offset + 3] & 0x80;
       if (touch) {
-        touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4])) & 0x7ff;
-        touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6])) & 0x7ff;
-        if (debugPrint_) Serial.printf(" %u:(%u, %u)", i, touch_x_[touch_count_], touch_y_[touch_count_]);
-        touch_count_++;
+        touch_x_[i] = ((data[offset + 3] << 8) | (data[offset + 4])) & 0x7ff;
+        touch_y_[i] = ((data[offset + 5] << 8) | (data[offset + 6])) & 0x7ff;
+        if (debugPrint_) Serial.printf(" %u:(%u, %u)", i, touch_x_[i], touch_y_[i]);
+        //touch_count_++;
   		  offset += (data[1] & 0x80) ? 8 : 9;
       }
     }
