@@ -391,11 +391,13 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
         touch_changed = true;
         if (debugPrint_) Serial.printf(" BTNS: %x", buttons);
       } else if ((data[offset] >= 2) && (data[offset] <= 17)) {
-        touch_changed = true;
-        touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4]));
-        touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6]));
-        if (debugPrint_) Serial.printf(" %u(%u):(%u, %u)", i, touch_count_, touch_x_[touch_count_], touch_y_[touch_count_]);
-        touch_count_++;
+        if (data[offset + 1] & 0x80) {
+          touch_changed = true;
+          touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4]));
+          touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6]));
+          if (debugPrint_) Serial.printf(" %u(%u):(%u, %u)", i, touch_count_, touch_x_[touch_count_], touch_y_[touch_count_]);
+          touch_count_++;
+        }
       }
       // Else we will ignore the slot
       offset += 8;
