@@ -374,27 +374,41 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
 bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
 {
   // long format
-  //HPID(64): 02 80 58 82 76 01 52 82 75 01 50 00 00 00 00 11 1F 11 21 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  // HPID(64): 02 07 01 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00
+  // HPID(64): 02 07 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00
+  // HPID(64): 02 80 58 82 76 01 52 82 75 01 50 00 00 00 00 11 1F 11 21 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
-  uint8_t offset = 0; 
+  uint8_t offset = 2; 
+  bool touch_changed = false;
   if (len == 64) {
-    buttons = data[1] & 0xf;
+    uint8_t count =  data[1] & 0x7;
     touch_count_ = 0;
-    if (debugPrint_) Serial.printf("INTOSH PT(64): BTNS: %x", buttons);
-    for (uint8_t i = 0; i < 2; i++) {
-      bool touch = data[offset + 3] & 0x80;
-      if (touch) {
-        touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4])) & 0x7ff;
-        touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6])) & 0x7ff;
-        if (debugPrint_) Serial.printf(" %u:(%u, %u)", i, touch_x_[touch_count_], touch_y_[touch_count_]);
+    if (debugPrint_) Serial.printf("INTOSH PT(64):");
+    for (uint8_t i = 0; i < count; i++) {
+      if(data[offset] == 0x80) {
+        // button message
+        buttons = data[offset+1];
+        touch_changed = true;
+        if (debugPrint_) Serial.printf(" BTNS: %x", buttons);
+      } else if ((data[offset] >= 2) && (data[offset] <= 17)) {
+        touch_changed = true;
+        touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4]));
+        touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6]));
+        if (debugPrint_) Serial.printf(" %u(%u):(%u, %u)", i, touch_count_, touch_x_[touch_count_], touch_y_[touch_count_]);
         touch_count_++;
-  		  offset += (data[1] & 0x80) ? 8 : 9;
       }
+      // Else we will ignore the slot
+      offset += 8;
     }
+
     if (debugPrint_) Serial.println();
-    event_type_ = TOUCH;
-    digitizerEvent = true;
+    if (touch_changed) {
+      // is there anything to report?
+      event_type_ = TOUCH;
+      digitizerEvent = true;
+    }
     return true;
+
   } else if ((len == 9) || (len == 10)) {
     if (debugPrint_) Serial.print("INTOSH PT(10): ");
     // the pen
