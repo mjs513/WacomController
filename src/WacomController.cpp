@@ -377,7 +377,6 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
   // HPID(64): 02 07 01 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00
   // HPID(64): 02 07 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00
   // HPID(64): 02 80 58 82 76 01 52 82 75 01 50 00 00 00 00 11 1F 11 21 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-  //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
   uint8_t offset = 2; 
   bool touch_changed = false;
   if (len == 64) {
@@ -411,36 +410,48 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
     }
     return true;
 
-  } else if ((len == 9) || (len == 10)) {
-    if (debugPrint_) Serial.print("INTOSH PT(10): ");
-    // the pen
-    //HPID(9): 02 F0 1A 20 62 1B 00 00 0
-    bool range = (data[1] & 0x80) == 0x80;
-    bool prox = (data[1] & 0x40) == 0x40;
-    bool rdy = (data[1] & 0x20) == 0x20;
+  } else if (len == 16) {
+    if (debugPrint_) Serial.print("INTOSH PT(16): ");
     buttons = 0;
     touch_count_ = 0;
     pen_pressure_ = 0;
     pen_distance_ = 0;
-    if (rdy) {
-      buttons = data[1] & 0xf;
-      pen_pressure_ = __get_unaligned_le16(&data[6]);
-      if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", buttons, pen_pressure_);
+
+    if ((data[1] & 0xfc) == 0xc0) {
+      // In Prox: HPID(16): 02 C2 80 A2 38 03 29 51 00 00 00 00 00 00 00 00
+      uint32_t serial = ((data[3] & 0x0f) << 28) + (data[4] << 20) + (data[5] << 12) +  
+          (data[6] << 4) + (data[7] >> 4);
+
+      uint16_t id = (data[2] << 4) | (data[3] >> 4) |
+         ((data[7] & 0x0f) << 16) | ((data[8] & 0xf0) << 8);
+      if (debugPrint_) Serial.printf(" Prox: Serial:%x id:%x", serial, id);
+      // Do we process this one?
+
+    } else if ((data[1] & 0xfe) == 0x20) {
+      // we are in range: HPID(16): 02 20 1E 0F 00 00 00 00 00 FE 00 00 00 00 00 00
+      pen_distance_ = s_tablets_info[tablet_info_index_].distance_max;
+      if (debugPrint_) Serial.print(" Range");
+      event_type_ = PEN;
+      digitizerEvent = true;
+
+    } else if ((data[1] & 0xfe) == 0x80) {
+      // out of proximite 
+    } else {
+      // Maybe should double check tool type.
+      uint8_t type = (data[1] >> 1) & 0x0f;
+      if (type < 4) {
+        // normal pen message.
+        touch_x_[0] = __get_unaligned_be16(&data[2]) | ((data[9] >> 1) & 1);
+        touch_y_[0] = __get_unaligned_be16(&data[4]) | (data[9] & 1);
+        pen_distance_ = data[9] >> 2;
+        pen_pressure_  = (data[6] << 3) | ((data[7] & 0xC0) >> 5) | (data[1] & 1);
+        buttons = data[1] & 0x6;
+        if (pen_pressure_ > 10) buttons |= 1;
+        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u\n", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_);
+      } else {
+        if (debugPrint_) Serial.printf("Unprocess tool type: %x", type);
+      }
     }
-    if (prox) {
-        touch_x_[0] = __get_unaligned_le16(&data[2]);
-        touch_y_[0] = __get_unaligned_le16(&data[4]);
-        if (debugPrint_) Serial.printf(" (%u, %u)", touch_x_[0], touch_y_[0]);
-        touch_count_ = 1;
-      digitizerEvent = true;  // only set true if we are close enough...
-    }
-    if (range) {
-        if (data[8] <= s_tablets_info[tablet_info_index_].distance_max) {
-          pen_distance_ = s_tablets_info[tablet_info_index_].distance_max - data[8];
-          if (debugPrint_) Serial.printf(" Distance: %u", pen_distance_);
-        }
-    }
-    event_type_ = PEN;
     if (debugPrint_) Serial.println();
     return true;
   }
