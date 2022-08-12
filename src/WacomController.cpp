@@ -315,25 +315,59 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
   // long format
   //HPID(64): 02 80 58 82 76 01 52 82 75 01 50 00 00 00 00 11 1F 11 21 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
-  uint8_t offset = 0; 
+/*  uint8_t offset = 0; 
+  bool touch = false;
   if (len == 64) {
     if(data[2] == 0x80) buttons = data[3];
     touch_count_ = data[1];
     if (debugPrint_) Serial.printf("INTOSH PT(64): BTNS: %x", buttons);
     for (uint8_t i = 0; i < touch_count_; i++) {
-      bool touch = data[offset + 3] & 0x80;
+      //bool touch = (data[3] & 0x80;
+	  touch = (data[3] != 0x81) ? true : false;
       if (touch) {
-		offset = (8 * i) + 2;
-        touch_x_[i] = ((data[offset + 3] << 8) | (data[offset + 4])) & 0x7ff;
-        touch_y_[i] = ((data[offset + 5] << 8) | (data[offset + 6])) & 0x7ff;
+        touch_x_[i] = (data[offset + 4] << 4) | (data[offset + 6] >> 4);
+		touch_y_[i] = (data[offset + 5] << 4) | (data[offset + 6] & 0x0f);
         if (debugPrint_) Serial.printf(" %u:(%u, %u)", i, touch_x_[i], touch_y_[i]);
-        //touch_count_++;
-  		//offset += (data[1] & 0x80) ? 8 : 9;
+
+		offset += 8;
       }
     }
     if (debugPrint_) Serial.println();
     event_type_ = TOUCH;
     digitizerEvent = true;
+    return true;
+*/
+  uint8_t offset = 2; 
+  bool touch_changed = false;
+  if (len == 64) {
+    uint8_t count =  data[1] & 0x7;
+    touch_count_ = 0;
+    if (debugPrint_) Serial.printf("INTOSH PT(64):");
+    for (uint8_t i = 0; i < count; i++) {
+      if(data[offset] == 0x80) {
+        // button message
+        buttons = data[offset+1];
+        touch_changed = true;
+        if (debugPrint_) Serial.printf(" BTNS: %x", buttons);
+      } else if ((data[offset] >= 2) && (data[offset] <= 17)) {
+        if (data[offset + 1] & 0x80) {
+          touch_changed = true;
+          touch_x_[touch_count_] = (data[offset + 2] << 4) | (data[offset + 4] >> 4);
+          touch_y_[touch_count_] = (data[offset + 3] << 4) | (data[offset + 4] & 0x0f);
+          if (debugPrint_) Serial.printf(" %u(%u):(%u, %u)", i, touch_count_, touch_x_[touch_count_], touch_y_[touch_count_]);
+          touch_count_++;
+        }
+      }
+      // Else we will ignore the slot
+      offset += 8;
+    }
+
+    if (debugPrint_) Serial.println();
+    if (touch_changed) {
+      // is there anything to report?
+      event_type_ = TOUCH;
+      digitizerEvent = true;
+    }	
     return true;
   } else if (len <= 16) {
     if (debugPrint_) Serial.printf("INTOSH PT( %d ): ", len);
@@ -392,8 +426,10 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
       } else if ((data[offset] >= 2) && (data[offset] <= 17)) {
         if (data[offset + 1] & 0x80) {
           touch_changed = true;
-          touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4]));
-          touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6]));
+          //touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4]));
+          //touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6]));
+          touch_x_[touch_count_] = (data[offset + 2] << 4) | (data[offset + 4] >> 4);
+          touch_y_[touch_count_] = (data[offset + 3] << 4) | (data[offset + 4] & 0x0f);
           if (debugPrint_) Serial.printf(" %u(%u):(%u, %u)", i, touch_count_, touch_x_[touch_count_], touch_y_[touch_count_]);
           touch_count_++;
         }
