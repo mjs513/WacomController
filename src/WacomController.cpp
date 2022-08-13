@@ -147,7 +147,8 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
     Serial.println();
   }
   // see if we wish to process buffer
-  if ((buffer[0] != 2) || (tablet_info_index_ == 0xff)) return false;
+  // Only proess if we have a known tablet
+  if (tablet_info_index_ == 0xff) return false;
 
   switch (s_tablets_info[tablet_info_index_].type) {
     case INTUOS5:
@@ -253,6 +254,9 @@ inline uint16_t __get_unaligned_le16(const uint8_t *p)
 }
 
 bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
+  // only process report 2
+  if (data[0] != 2) return false;
+
   // long format
   //HPID(64): 02 80 58 82 76 01 52 82 75 01 50 00 00 00 00 11 1F 11 21 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
@@ -312,6 +316,8 @@ bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
 }
 
 bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
+  // only process report 2
+  if (data[0] != 2) return false;
   // long format
   //HPID(64): 02 80 58 82 76 01 52 82 75 01 50 00 00 00 00 11 1F 11 21 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
@@ -407,6 +413,9 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
 
 bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
 {
+  // only process reports 2 and 3
+  if ((data[0] != 2) && (data[0] != 2)) return false;
+
   // long format
   // HPID(64): 02 07 01 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00
   // HPID(64): 02 07 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -484,6 +493,8 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
         buttons = data[1] & 0x6;
         if (pen_pressure_ > 10) buttons |= 1;
         if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u\n", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_);
+        event_type_ = PEN;
+        digitizerEvent = true;
       } else {
         if (debugPrint_) Serial.printf("Unprocess tool type: %x", type);
       }
