@@ -497,9 +497,11 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
         touch_y_[0] = __get_unaligned_be16(&data[4]) | (data[9] & 1);
         pen_distance_ = data[9] >> 2;
         pen_pressure_  = (data[6] << 3) | ((data[7] & 0xC0) >> 5) | (data[1] & 1);
+        pen_tilt_x_ = (((data[7] << 1) & 0x7e) | (data[8] >> 7)) - 64;
+        pen_tilt_y_ = (data[8] & 0x7f) - 64;
         buttons = data[1] & 0x6;
         if (pen_pressure_ > 10) buttons |= 1;
-        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u\n", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_);
+        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u tx:%d ty:%d\n", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_, pen_tilt_x_,pen_tilt_y_);
         event_type_ = PEN;
         digitizerEvent = true;
       } else {
@@ -590,6 +592,8 @@ void WacomController::digitizerDataClear() {
   event_type_ = NONE;
   pen_pressure_ = 0;  
   pen_distance_ = 0;
+  pen_tilt_x_ = 0;
+  pen_tilt_y_ = 0;
   wheel = 0;
   wheelH = 0;
 }
