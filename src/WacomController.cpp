@@ -16,17 +16,19 @@ enum {
 	WACOM_24HDT,
 	WACOM_27QHDT,
 	BAMBOO_PAD,
-	MAX_TYPE
+	MAX_TYPE,
+	H640P
 };
 
 #define WACOM_INTUOS_RES	100
 #define WACOM_INTUOS3_RES	200
 
 const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
-  {0x27 /*"Wacom Intuos5 touch M"*/, 44704, 27940, 2047, 63, INTUOS5, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
-  {0xD8 /*"Wacom Bamboo Comic 2FG"*/, 21648, 13700, 1023, 31, BAMBOO_PT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 2},
-  {0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,  INTUOSHT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 16}
-};
+  {0x056A, 0x27 /*"Wacom Intuos5 touch M"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS5, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
+  {0x056A, 0xD8 /*"Wacom Bamboo Comic 2FG"*/, 21648, 13700, 1023, 31, 2, 2, BAMBOO_PT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 2},
+  {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, INTUOSHT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 16},
+  {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 31, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES }
+ };
 
 //static const struct wacom_features wacom_features_HID_ANY_ID =
 //	{ "Wacom HID", .type = HID_GENERIC, .oVid = HID_ANY_ID, .oPid = HID_ANY_ID };
@@ -40,7 +42,7 @@ void WacomController::init() {
 
 hidclaim_t WacomController::claim_collection(USBHIDParser *driver, Device_t *dev, uint32_t topusage) {
   // only claim The mouse like usage, plus the Digitizer and their special one
-  if (dev->idVendor != 0x056A) return CLAIM_NO;  //  NOT Wacom
+  if (dev->idVendor != 0x056A && dev->idVendor != 0x256c ) return CLAIM_NO;  //  NOT Wacom
 
   // only claim from one physical device
   if (mydevice != NULL && dev != mydevice) return CLAIM_NO;
@@ -103,7 +105,9 @@ void WacomController::hid_input_begin(uint32_t topusage, uint32_t type, int lgmi
 	    //byte=0x02
 	    //byte=0x02
     Serial.println("Setup to send different report");
-    static const uint8_t set_report_data[2] = {2, 2};
+	
+	if(s_tablets_info[tablet_info_index_].report_id != 0) {
+		static const uint8_t set_report_data[2] = {s_tablets_info[tablet_info_index_].report_id, s_tablets_info[tablet_info_index_].report_value};
 		driver_->sendControlPacket(0x21, 9, 0x0302, 0, 2, (void*)set_report_data); 
   }
 
@@ -148,8 +152,8 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
   }
   // see if we wish to process buffer
   // Only proess if we have a known tablet
-  if (tablet_info_index_ == 0xff) return false;
-
+  if ((buffer[0] != 2 && buffer[0] != 0x0A) || (tablet_info_index_ == 0xff)) return false;
+  
   switch (s_tablets_info[tablet_info_index_].type) {
     case INTUOS5:
       return decodeIntuos5(buffer, transfer->length);
@@ -161,7 +165,9 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
     case INTUOSHT:
       return decodeIntuosHT(buffer, transfer->length);
       break;
-    
+    case H640P:
+      return decodeH640P(buffer, transfer->length);
+      break;
     default:
       return false;  
   }
@@ -188,8 +194,8 @@ void WacomController::hid_input_data(uint32_t usage, int32_t value) {
       case 0x31:
         touch_y_[0] = value;
         break;
-		  case 0x32: // Apple uses this for horizontal scroll
-				wheelH = value;
+	  case 0x32: // Apple uses this for horizontal scroll
+		wheelH = value;
         break;
       case 0x38:
         wheel = value;
@@ -321,28 +327,6 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
   // long format
   //HPID(64): 02 80 58 82 76 01 52 82 75 01 50 00 00 00 00 11 1F 11 21 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
-/*  uint8_t offset = 0; 
-  bool touch = false;
-  if (len == 64) {
-    if(data[2] == 0x80) buttons = data[3];
-    touch_count_ = data[1];
-    if (debugPrint_) Serial.printf("INTOSH PT(64): BTNS: %x", buttons);
-    for (uint8_t i = 0; i < touch_count_; i++) {
-      //bool touch = (data[3] & 0x80;
-	  touch = (data[3] != 0x81) ? true : false;
-      if (touch) {
-        touch_x_[i] = (data[offset + 4] << 4) | (data[offset + 6] >> 4);
-		touch_y_[i] = (data[offset + 5] << 4) | (data[offset + 6] & 0x0f);
-        if (debugPrint_) Serial.printf(" %u:(%u, %u)", i, touch_x_[i], touch_y_[i]);
-
-		offset += 8;
-      }
-    }
-    if (debugPrint_) Serial.println();
-    event_type_ = TOUCH;
-    digitizerEvent = true;
-    return true;
-*/
   uint8_t offset = 2; 
   bool touch_changed = false;
   if (len == 64) {
@@ -504,7 +488,72 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
   }
   return false;
 }
+bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
+	    if (debugPrint_) Serial.println("H640P(16): ");
 
+  uint8_t offset = 0; 
+  if (len == 64) {
+    buttons = data[1] & 0xf;
+    touch_count_ = 0;
+    if (debugPrint_) Serial.printf("BAMBOO PT(64): BTNS: %x", buttons);
+    for (uint8_t i = 0; i < 2; i++) {
+      bool touch = data[offset + 3] & 0x80;
+      if (touch) {
+        touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4])) & 0x7ff;
+        touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6])) & 0x7ff;
+        if (debugPrint_) Serial.printf(" %u:(%u, %u)", i, touch_x_[touch_count_], touch_y_[touch_count_]);
+        touch_count_++;
+  		  offset += (data[1] & 0x80) ? 8 : 9;
+      }
+    }
+    if (debugPrint_) Serial.println();
+    event_type_ = TOUCH;
+    digitizerEvent = true;
+    return true;
+  } else if (len == 16) {
+    if (debugPrint_) Serial.print("H640P(16): ");
+    // the pen
+	//HID(d0002): 0A 00 (c1=Tip Switch, c3=lower Barrel Switch, c5 upper Barrel Switch)
+	// FF 7F (x)
+	// C9 39 (y)
+	// 00 00 (pressure)
+	// 00 00 00 00 00 00 00 00 
+    bool range = (data[1] & 0x80) == 0x80;
+    bool prox = (data[1] & 0x40) == 0x40;
+    bool rdy = (data[1] & 0xC0) == 0xC0;
+    buttons = 0;
+    touch_count_ = 0;
+    pen_pressure_ = 0;
+    pen_distance_ = 0;
+    if (rdy) {
+      buttons = data[1] & 0xf;
+      pen_pressure_ = __get_unaligned_le16(&data[6]);
+      if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", buttons, pen_pressure_);
+    }
+    if (prox) {
+        touch_x_[0] = __get_unaligned_le16(&data[2]);
+        touch_y_[0] = __get_unaligned_le16(&data[4]);
+        if (debugPrint_) Serial.printf(" (%u, %u)", touch_x_[0], touch_y_[0]);
+        touch_count_ = 1;
+      digitizerEvent = true;  // only set true if we are close enough...
+    }
+	/*
+    if (range) {
+        if (data[8] <= s_tablets_info[tablet_info_index_].distance_max) {
+          pen_distance_ = s_tablets_info[tablet_info_index_].distance_max - data[8];
+          if (debugPrint_) Serial.printf(" Distance: %u", pen_distance_);
+        }
+    }
+	*/
+	pen_distance_ = 0;
+    event_type_ = PEN;
+    if (debugPrint_) Serial.println();
+    return true;
+  }
+  return false;
+	
+	
+}
 
 void WacomController::digitizerDataClear() {
   digitizerEvent = false;
