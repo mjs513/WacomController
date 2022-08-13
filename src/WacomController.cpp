@@ -16,8 +16,8 @@ enum {
 	WACOM_24HDT,
 	WACOM_27QHDT,
 	BAMBOO_PAD,
+	H640P,
 	MAX_TYPE,
-	H640P
 };
 
 #define WACOM_INTUOS_RES	100
@@ -27,7 +27,7 @@ const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
   {0x056A, 0x27 /*"Wacom Intuos5 touch M"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS5, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
   {0x056A, 0xD8 /*"Wacom Bamboo Comic 2FG"*/, 21648, 13700, 1023, 31, 2, 2, BAMBOO_PT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 2},
   {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, INTUOSHT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 16},
-  {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 31, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES }
+  {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES }
  };
 
 //static const struct wacom_features wacom_features_HID_ANY_ID =
@@ -110,7 +110,7 @@ void WacomController::hid_input_begin(uint32_t topusage, uint32_t type, int lgmi
 		static const uint8_t set_report_data[2] = {s_tablets_info[tablet_info_index_].report_id, s_tablets_info[tablet_info_index_].report_value};
 		driver_->sendControlPacket(0x21, 9, 0x0302, 0, 2, (void*)set_report_data); 
   }
-
+ }
 }
 
 #define WACOM_HID_SP_PAD 0x00040000
@@ -152,8 +152,9 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
   }
   // see if we wish to process buffer
   // Only proess if we have a known tablet
-  if ((buffer[0] != 2 && buffer[0] != 0x0A) || (tablet_info_index_ == 0xff)) return false;
-  
+  //if ((buffer[0] != 2 && buffer[0] != 0x0A) || (tablet_info_index_ == 0xff)) return false;
+  if((buffer[0] != s_tablets_info[tablet_info_index_].report_id)  || (tablet_info_index_ == 0xff)) return false;
+    
   switch (s_tablets_info[tablet_info_index_].type) {
     case INTUOS5:
       return decodeIntuos5(buffer, transfer->length);
