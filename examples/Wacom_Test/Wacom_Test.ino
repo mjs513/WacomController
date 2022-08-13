@@ -105,8 +105,15 @@ void loop() {
   if (digi1.available()) {
     int touch_count = digi1.getTouchCount();
     int touch_index;
-    Serial.printf("Digitizer: buttons = %X", digi1.getButtons());
-
+    uint16_t buttons_bin = digi1.getButtons();
+    bool pen_button[3];
+    Serial.printf("Digitizer: ");
+    for (int i = 0; i < 3; i++) {
+      pen_button[i] = (buttons_bin >> i) & 0x1;
+      
+      Serial.printf("Pen_Btn%d:%d ",i,pen_button[i]);
+      }
+    
     switch (digi1.eventType()) {
       case WacomController::TOUCH:
         Serial.print(" Touch:");
@@ -117,7 +124,24 @@ void loop() {
       case WacomController::PEN:
         Serial.printf(" Pen: (%d, %d) Prssure: %u Distance: %u", digi1.getX(), digi1.getY(),
             digi1.getPenPressure(), digi1.getPenDistance());
-        break; 
+        break;
+      case WacomController::SIDE_CTRL:
+      //wheel data 0-71
+      Serial.printf(" Whl: %d ", digi1.getIntuosWheel());
+      //wheel button binary, no touch functionality
+      Serial.printf(" WhlBtn: %d ", digi1.getIntuosWheelButton());
+      
+      //buttons are saved within one byte for all the 8 buttons, here is a decoding example
+      uint16_t button_touch_bin = digi1.getIntuosButtonTouch();
+      uint16_t button_press_bin = digi1.getIntuosButtonPress();
+      bool button_touched[8];
+      bool button_pressed[8];
+      for (int i = 0; i < 8; i++) {
+      button_touched[i] = (button_touch_bin >> i) & 0x1;
+      button_pressed[i] = (button_press_bin >> i) & 0x1;
+      Serial.printf("Btn%d: T:%d P:%d ",i,button_touched[i], button_pressed[i]);
+      }
+      break; 
       default:
         Serial.printf(",  X = %u, Y = %u", digi1.getX(), digi1.getY());
         Serial.print(",  Pressure: = ");

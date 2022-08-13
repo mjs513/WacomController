@@ -398,7 +398,7 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
 bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
 {
   // only process reports 2 and 3
-  if ((data[0] != 2) && (data[0] != 2)) return false;
+  if ((data[0] != 2) && (data[0] != 3)) return false;
 
   // long format
   // HPID(64): 02 07 01 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 81 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -464,6 +464,29 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
       digitizerEvent = true;
 
     } else if ((data[1] & 0xfe) == 0x80) {
+      
+      //only process buttons and wheel here, not stylus removal
+      if (data[0] == 0x03) {
+     if (data[2] > 0) side_wheel_ = data[2] - 128; 
+     side_wheel_button_ = data[3];
+     //touch the buttons
+     side_touch_buttons_ = data[5];
+     
+      //press the buttons
+     side_press_buttons_ = data[4];
+     if (debugPrint_) {
+      Serial.println();
+      Serial.printf("Wheel: %u ", side_wheel_);
+      Serial.println();
+      Serial.printf("WheelButton: %u ", side_wheel_button_);
+      Serial.println();
+      Serial.printf("Touch:%u Press:%u ", side_touch_buttons_, side_press_buttons_);
+      Serial.println();
+      
+     }
+      event_type_ = SIDE_CTRL;
+        digitizerEvent = true;
+      }
       // out of proximite 
     } else {
       // Maybe should double check tool type.
