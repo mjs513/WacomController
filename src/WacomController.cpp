@@ -152,8 +152,7 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
   }
   // see if we wish to process buffer
   // Only proess if we have a known tablet
-  //if ((buffer[0] != 2 && buffer[0] != 0x0A) || (tablet_info_index_ == 0xff)) return false;
-  if((buffer[0] != s_tablets_info[tablet_info_index_].report_id)  || (tablet_info_index_ == 0xff)) return false;
+  if (tablet_info_index_ == 0xff) return false;
     
   switch (s_tablets_info[tablet_info_index_].type) {
     case INTUOS5:
@@ -512,9 +511,12 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
   }
   return false;
 }
+
+
 bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 	    if (debugPrint_) Serial.println("H640P(16): ");
 
+  if(data[0] != s_tablets_info[tablet_info_index_].report_id) return false;
   uint8_t offset = 0; 
   if (len == 64) {
     buttons = data[1] & 0xf;
