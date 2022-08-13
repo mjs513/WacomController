@@ -67,11 +67,14 @@ protected:
   virtual bool hid_process_in_data(const Transfer_t *transfer);
 
   typedef struct {
+	uint16_t idVendor;
     uint16_t idProduct; // Product ID
     uint16_t x_max;
     uint16_t y_max;
     uint16_t pressure_max;
     uint16_t distance_max;
+	uint8_t report_id;
+	uint8_t report_value;
     uint16_t type;
     uint16_t x_resolution;
     uint16_t y_resolution;
@@ -87,6 +90,7 @@ private:
   bool decodeBamboo_PT(const uint8_t *buffer, uint16_t len);
   bool decodeIntuosHT(const uint8_t *buffer, uint16_t len);
   bool decodeIntuos5(const uint8_t *buffer, uint16_t len);
+  bool decodeH640P(const uint8_t *buffer, uint16_t len);
   uint8_t collections_claimed = 0;
   volatile bool digitizerEvent = false;
   volatile uint8_t hid_input_begin_count_ = 0;
