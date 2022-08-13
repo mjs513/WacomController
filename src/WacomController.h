@@ -13,7 +13,7 @@ public:
     return digitizerEvent;
   }
 
-  typedef enum {NONE= 0, MOUSE, TOUCH, PEN} event_type_t;
+  typedef enum {NONE= 0, MOUSE, TOUCH, PEN, SIDE_CTRL} event_type_t;
   event_type_t eventType() {return event_type_;}
 
   void digitizerDataClear();
@@ -32,6 +32,13 @@ public:
 
   uint16_t getPenPressure() { return pen_pressure_;  }  
   uint16_t getPenDistance() { return pen_distance_; }
+
+  uint16_t getIntuosWheel() { return side_wheel_; }
+  bool getIntuosWheelButton() { return side_wheel_button_;}
+  uint16_t getIntuosButtonTouch() { return side_touch_buttons_; }
+  uint16_t getIntuosButtonPress() { return side_press_buttons_; }
+    
+  
 
   int getWheel() {
     return wheel;
@@ -90,6 +97,10 @@ private:
   int touch_count_ = 0;
   uint16_t pen_pressure_ = 0;
   uint16_t pen_distance_ = 0;
+  uint16_t side_wheel_;
+  bool side_wheel_button_;
+  uint16_t side_touch_buttons_;
+  uint16_t side_press_buttons_;
   int wheel = 0;
   int wheelH = 0;
   int digiAxes[16];
