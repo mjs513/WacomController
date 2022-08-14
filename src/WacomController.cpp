@@ -17,6 +17,7 @@ enum {
 	WACOM_27QHDT,
 	BAMBOO_PAD,
 	H640P,
+	INTUOS4100,
 	MAX_TYPE,
 };
 
@@ -27,7 +28,9 @@ const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
   {0x056A, 0x27 /*"Wacom Intuos5 touch M"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS5, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
   {0x056A, 0xD8 /*"Wacom Bamboo Comic 2FG"*/, 21648, 13700, 1023, 31, 2, 2, BAMBOO_PT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 2},
   {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, INTUOSHT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 16},
-  {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES }
+  {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES },
+   // Added for 4100, data to be verified.
+  {0x056A, 0x374, 15200, 9500, 1023, 31, 0, 0, INTUOS4100,  WACOM_INTUOS_RES, WACOM_INTUOS_RES, 0}
  };
 
 //static const struct wacom_features wacom_features_HID_ANY_ID =
@@ -52,9 +55,9 @@ hidclaim_t WacomController::claim_collection(USBHIDParser *driver, Device_t *dev
 
   if (tablet_info_index_ == 0xff) {
     for (uint8_t i = 0; i < (sizeof(s_tablets_info)/sizeof(s_tablets_info[0])); i++) {
-      if (s_tablets_info[i].idProduct == idProduct_) {
+      if (s_tablets_info[i].idProduct == dev->idProduct) {
         tablet_info_index_ = i;
-        Serial.printf("set tablet_info_index_ = %u\n", i);
+        Serial.printf(">>> set tablet_info_index_ = %u <<<\n", i);
         break;
       }
     }
@@ -167,6 +170,9 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
       break;
     case H640P:
       return decodeH640P(buffer, transfer->length);
+      break;
+    case INTUOS4100:
+      return decodeIntuos4100(buffer, transfer->length);
       break;
     default:
       return false;  
@@ -582,6 +588,46 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 	
 	
 }
+
+bool WacomController::decodeIntuos4100(const uint8_t *data, uint16_t len)
+{
+  // only process report 0x10(16)
+  switch (data[0]) {
+  case 16:
+    {
+      if (debugPrint_) Serial.print("4100 PEN: ");
+
+      // I think most of this is handled in wacom_intuos_general like the pen messages of Intuous5, so will start from there.
+      uint8_t type = (data[1] >> 1) & 0x0f;
+      if (type < 4) {
+        // normal pen message.
+        touch_x_[0] = data[2] | (data[3] << 8) | (data[4] << 16);
+        touch_y_[0] = data[5] | (data[6] << 8) | (data[7] << 16);
+        pen_pressure_  = __get_unaligned_le16(&data[8]);
+        pen_distance_ = data[6];
+        buttons = data[1] & 0x7;
+        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_);
+        event_type_ = PEN;
+        digitizerEvent = true;
+      } else {
+        if (debugPrint_) Serial.printf("Unprocess tool type: %x", type);
+      }
+      if (debugPrint_) Serial.println();
+      return true;
+    }
+  case 17:
+    {
+      buttons = data[1] & 0xf;
+      touch_count_ = 0;
+      if (debugPrint_) Serial.printf("4100 Touch: BTNS: %x\n", buttons);
+      event_type_ = TOUCH;
+      digitizerEvent = true;
+      return true;
+    }
+  }
+  return false;
+}
+
 
 void WacomController::digitizerDataClear() {
   digitizerEvent = false;
