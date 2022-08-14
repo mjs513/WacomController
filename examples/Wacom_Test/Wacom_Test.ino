@@ -123,7 +123,8 @@ void loop() {
         break;
       case WacomController::PEN:
         Serial.printf(" Pen: (%d, %d) Pressure: %u Distance: %u", digi1.getX(), digi1.getY(),
-                      digi1.getPenPressure(), digi1.getPenDistance());
+            digi1.getPenPressure(), digi1.getPenDistance());
+        Serial.printf(" TiltX: %d TiltY: %d",digi1.getTiltX(), digi1.getTiltY());
         break;
       case WacomController::SIDE_CTRL:
         {
