@@ -92,8 +92,8 @@ private:
   bool decodeBamboo_PT(const uint8_t *buffer, uint16_t len);
   bool decodeIntuosHT(const uint8_t *buffer, uint16_t len);
   bool decodeIntuos5(const uint8_t *buffer, uint16_t len);
+  bool decodeIntuos4(const uint8_t *buffer, uint16_t len);
   bool decodeH640P(const uint8_t *buffer, uint16_t len);
-  bool decodeIntuos4100(const uint8_t *buffer, uint16_t len);
   uint8_t collections_claimed = 0;
   volatile bool digitizerEvent = false;
   volatile uint8_t hid_input_begin_count_ = 0;
