@@ -111,37 +111,39 @@ void loop() {
     for (int i = 0; i < 3; i++) {
       pen_button[i] = (buttons_bin >> i) & 0x1;
       
-      Serial.printf("Pen_Btn%d:%d ",i,pen_button[i]);
-      }
+      Serial.printf("Pen_Btn%d:%d ",i, pen_button[i]);
+     }
     
     switch (digi1.eventType()) {
       case WacomController::TOUCH:
         Serial.print(" Touch:");
-        for (touch_index=0; touch_index < touch_count; touch_index++) {
+        for (touch_index = 0; touch_index < touch_count; touch_index++) {
           Serial.printf(" (%d, %d)", digi1.getX(touch_index), digi1.getY(touch_index));
         }
         break;
       case WacomController::PEN:
-        Serial.printf(" Pen: (%d, %d) Prssure: %u Distance: %u", digi1.getX(), digi1.getY(),
+        Serial.printf(" Pen: (%d, %d) Pressure: %u Distance: %u", digi1.getX(), digi1.getY(),
             digi1.getPenPressure(), digi1.getPenDistance());
         Serial.printf(" TiltX: %d TiltY: %d",digi1.getTiltX(), digi1.getTiltY());
         break;
       case WacomController::SIDE_CTRL:
-      //wheel data 0-71
-      Serial.printf(" Whl: %d ", digi1.getIntuosWheel());
-      //wheel button binary, no touch functionality
-      Serial.printf(" WhlBtn: %d ", digi1.getIntuosWheelButton());
+        {
+        //wheel data 0-71
+        Serial.printf(" Whl: %d ", digi1.getIntuosWheel());
+        //wheel button binary, no touch functionality
+        Serial.printf(" WhlBtn: %d ", digi1.getIntuosWheelButton());
       
-      //buttons are saved within one byte for all the 8 buttons, here is a decoding example
-      uint16_t button_touch_bin = digi1.getIntuosButtonTouch();
-      uint16_t button_press_bin = digi1.getIntuosButtonPress();
-      bool button_touched[8];
-      bool button_pressed[8];
-      for (int i = 0; i < 8; i++) {
-      button_touched[i] = (button_touch_bin >> i) & 0x1;
-      button_pressed[i] = (button_press_bin >> i) & 0x1;
-      Serial.printf("Btn%d: T:%d P:%d ",i,button_touched[i], button_pressed[i]);
-      }
+        //buttons are saved within one byte for all the 8 buttons, here is a decoding example
+        uint16_t button_touch_bin = digi1.getIntuosButtonTouch();
+        uint16_t button_press_bin = digi1.getIntuosButtonPress();
+        bool button_touched[8];
+        bool button_pressed[8];
+        for (int i = 0; i < 8; i++) {
+          button_touched[i] = (button_touch_bin >> i) & 0x1;
+          button_pressed[i] = (button_press_bin >> i) & 0x1;
+          Serial.printf("Btn%d: T:%d P:%d ",i,button_touched[i], button_pressed[i]);
+         }
+        }
       break; 
       default:
         Serial.printf(",  X = %u, Y = %u", digi1.getX(), digi1.getY());
