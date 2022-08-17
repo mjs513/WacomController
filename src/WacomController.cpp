@@ -1,5 +1,6 @@
 #include "WacomController.h"
 // lokki *** Device HID1 56a:27 Intuos5 touch M
+//lokki *** Device HID1 56a:ba Intuos4 Large
 // My Bamboo: *** Device HID2 56a:d8  CTH-661
 // Mikes 056A, ProductID = 0302, Wacom Intuos PT S
 // My Intuous S** Device HID1 56a:374 Intuos S
@@ -8,6 +9,7 @@ enum {
 	INTUOS5S,
 	INTUOS5,
 	INTUOS5L,
+  INTUOS4L,
 	BAMBOO_PEN,
 	INTUOSHT,
 	INTUOSHT2,
@@ -17,7 +19,6 @@ enum {
 	WACOM_27QHDT,
 	BAMBOO_PAD,
 	H640P,
-	INTUOS4100,
 	MAX_TYPE,
 };
 
@@ -28,7 +29,8 @@ const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
   {0x056A, 0x27 /*"Wacom Intuos5 touch M"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS5, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
   {0x056A, 0xD8 /*"Wacom Bamboo Comic 2FG"*/, 21648, 13700, 1023, 31, 2, 2, BAMBOO_PT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 2},
   {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, INTUOSHT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 16},
-  {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 31, 2, 2, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES },
+  {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES },
+  {0x056A, 0xBA /*"Wacom Intuos4 L"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS4L, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
    // Added for 4100, data to be verified.
   {0x056A, 0x374, 15200, 9500, 1023, 31, 0, 0, INTUOS4100,  WACOM_INTUOS_RES, WACOM_INTUOS_RES, 0}
  };
@@ -55,9 +57,9 @@ hidclaim_t WacomController::claim_collection(USBHIDParser *driver, Device_t *dev
 
   if (tablet_info_index_ == 0xff) {
     for (uint8_t i = 0; i < (sizeof(s_tablets_info)/sizeof(s_tablets_info[0])); i++) {
-      if (s_tablets_info[i].idProduct == dev->idProduct) {
+      if (s_tablets_info[i].idProduct == idProduct_) {
         tablet_info_index_ = i;
-        Serial.printf(">>> set tablet_info_index_ = %u <<<\n", i);
+        Serial.printf("set tablet_info_index_ = %u\n", i);
         break;
       }
     }
@@ -171,9 +173,9 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
     case H640P:
       return decodeH640P(buffer, transfer->length);
       break;
-    case INTUOS4100:
-      return decodeIntuos4100(buffer, transfer->length);
-      break;
+    case INTUOS4L:
+    return decodeIntuos4(buffer, transfer->length);
+    break;  
     default:
       return false;  
   }
@@ -569,45 +571,90 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 	
 }
 
-bool WacomController::decodeIntuos4100(const uint8_t *data, uint16_t len)
+bool WacomController::decodeIntuos4(const uint8_t *data, uint16_t len)
 {
-  // only process report 0x10(16)
-  switch (data[0]) {
-  case 16:
-    {
-      if (debugPrint_) Serial.print("4100 PEN: ");
+  // only process reports 2 and 3
+  if ((data[0] != 2) && (data[0] != 0x0C)) return false;
 
-      // I think most of this is handled in wacom_intuos_general like the pen messages of Intuous5, so will start from there.
+  uint8_t offset = 2; 
+  bool touch_changed = false;
+ if (len == 10) {
+    if (debugPrint_) Serial.print("INTUOS 4(10): ");
+    buttons = 0;
+    touch_count_ = 0;
+    pen_pressure_ = 0;
+    pen_distance_ = 0;
+if (data[0] == 0x02) {
+    if ((data[1] & 0xfc) == 0xc0) {
+      // In Prox: HPID(16): 02 C2 80 A2 38 03 29 51 00 00 00 00 00 00 00 00
+      uint32_t serial = ((data[3] & 0x0f) << 28) + (data[4] << 20) + (data[5] << 12) +  
+          (data[6] << 4) + (data[7] >> 4);
+
+      uint16_t id = (data[2] << 4) | (data[3] >> 4) |
+         ((data[7] & 0x0f) << 16) | ((data[8] & 0xf0) << 8);
+      if (debugPrint_) Serial.printf(" Prox: Serial:%x id:%x", serial, id);
+      // Do we process this one?
+
+    } else if ((data[1] & 0xfe) == 0x20) {
+      // we are in range: HPID(16): 02 20 1E 0F 00 00 00 00 00 FE 00 00 00 00 00 00
+      pen_distance_ = s_tablets_info[tablet_info_index_].distance_max;
+      if (debugPrint_) Serial.print(" Range");
+      event_type_ = PEN;
+      digitizerEvent = true;
+    } else if ((data[1] & 0xfe) == 0x80) {
+      // out of proximite 
+      if (debugPrint_) Serial.println("Stylus removed");
+    }
+  else {
+      // Maybe should double check tool type.
       uint8_t type = (data[1] >> 1) & 0x0f;
+      
       if (type < 4) {
+        
         // normal pen message.
-        touch_x_[0] = data[2] | (data[3] << 8) | (data[4] << 16);
-        touch_y_[0] = data[5] | (data[6] << 8) | (data[7] << 16);
-        pen_pressure_  = __get_unaligned_le16(&data[8]);
-        pen_distance_ = data[6];
-        buttons = data[1] & 0x7;
-        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_);
+        touch_x_[0] = __get_unaligned_be16(&data[2]) | ((data[9] >> 1) & 1);
+        touch_y_[0] = __get_unaligned_be16(&data[4]) | (data[9] & 1);
+        pen_distance_ = data[9] >> 2;
+        pen_pressure_  = (data[6] << 3) | ((data[7] & 0xC0) >> 5) | (data[1] & 1);
+        pen_tilt_x_ = (((data[7] << 1) & 0x7e) | (data[8] >> 7)) - 64;
+        pen_tilt_y_ = (data[8] & 0x7f) - 64;
+        buttons = data[1] & 0x6;
+        if (pen_pressure_ > 10) buttons |= 1;
+        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u tx:%d ty:%d\n", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_, pen_tilt_x_,pen_tilt_y_);
         event_type_ = PEN;
         digitizerEvent = true;
       } else {
         if (debugPrint_) Serial.printf("Unprocess tool type: %x", type);
       }
-      if (debugPrint_) Serial.println();
-      return true;
+      
     }
-  case 17:
-    {
-      buttons = data[1] & 0xf;
-      touch_count_ = 0;
-      if (debugPrint_) Serial.printf("4100 Touch: BTNS: %x\n", buttons);
-      event_type_ = TOUCH;
-      digitizerEvent = true;
-      return true;
-    }
+ } else if (data[0] == 0x0C) {
+        
+       if (data[1] > 0) side_wheel_ = data[1] - 128; 
+     side_wheel_button_ = data[2];
+     //touch the buttons
+   //  side_touch_buttons_ = data[4];
+     
+      //press the buttons
+     side_press_buttons_ = data[3];
+     if (debugPrint_) {
+      Serial.println();
+      Serial.printf("Wheel: %u ", side_wheel_);
+      Serial.println();
+      Serial.printf("WheelButton: %u ", side_wheel_button_);
+      Serial.println();
+      Serial.printf("Touch:%u Press:%u ", side_touch_buttons_, side_press_buttons_);
+      Serial.println();
+      
+     }
+      event_type_ = SIDE_CTRL;
+        digitizerEvent = true;
+      }
+    if (debugPrint_) Serial.println();
+    return true;
   }
   return false;
 }
-
 
 void WacomController::digitizerDataClear() {
   digitizerEvent = false;
