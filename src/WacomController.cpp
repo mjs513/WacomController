@@ -31,6 +31,8 @@ const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
   {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, INTUOSHT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 16},
   {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES },
   {0x056A, 0xBA /*"Wacom Intuos4 L"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS4L, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
+   // Added for 4100, data to be verified.
+  {0x056A, 0x374, 15200, 9500, 1023, 31, 0, 0, INTUOS4100,  WACOM_INTUOS_RES, WACOM_INTUOS_RES, 0}
  };
 
 //static const struct wacom_features wacom_features_HID_ANY_ID =
@@ -522,29 +524,9 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
 
 
 bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
-	    if (debugPrint_) Serial.println("H640P(16): ");
 
-  if(data[0] != s_tablets_info[tablet_info_index_].report_id) return false;
-  uint8_t offset = 0; 
-  if (len == 64) {
-    buttons = data[1] & 0xf;
-    touch_count_ = 0;
-    if (debugPrint_) Serial.printf("BAMBOO PT(64): BTNS: %x", buttons);
-    for (uint8_t i = 0; i < 2; i++) {
-      bool touch = data[offset + 3] & 0x80;
-      if (touch) {
-        touch_x_[touch_count_] = ((data[offset + 3] << 8) | (data[offset + 4])) & 0x7ff;
-        touch_y_[touch_count_] = ((data[offset + 5] << 8) | (data[offset + 6])) & 0x7ff;
-        if (debugPrint_) Serial.printf(" %u:(%u, %u)", i, touch_x_[touch_count_], touch_y_[touch_count_]);
-        touch_count_++;
-  		  offset += (data[1] & 0x80) ? 8 : 9;
-      }
-    }
-    if (debugPrint_) Serial.println();
-    event_type_ = TOUCH;
-    digitizerEvent = true;
-    return true;
-  } else if (len == 16) {
+  //if(data[0] != s_tablets_info[tablet_info_index_].report_id) return false;
+  if (len == 16) {
     if (debugPrint_) Serial.print("H640P(16): ");
     // the pen
 	//HID(d0002): 0A 00 (c1=Tip Switch, c3=lower Barrel Switch, c5 upper Barrel Switch)
@@ -552,7 +534,7 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 	// C9 39 (y)
 	// 00 00 (pressure)
 	// 00 00 00 00 00 00 00 00 
-    bool range = (data[1] & 0x80) == 0x80;
+    //bool range = (data[1] & 0x80) == 0x80;
     bool prox = (data[1] & 0x40) == 0x40;
     bool rdy = (data[1] & 0xC0) == 0xC0;
     buttons = 0;
