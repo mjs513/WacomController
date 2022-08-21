@@ -84,9 +84,38 @@ hidclaim_t WacomController::claim_collection(USBHIDParser *driver, Device_t *dev
   mydevice = dev;
   driver_ = driver;
   idProduct_ = dev->idProduct;
-  return (tablet_info_index_ == 0xff)? CLAIM_REPORT : CLAIM_INTERFACE;
+
+  // Try to send setup packets here.
+  if (tablet_info_index_ != 0xff) {
+    maybeSendSetupControlPackets();
+    return CLAIM_INTERFACE;
+  }
+  return CLAIM_REPORT;
 }
 
+// Some tablets need us to send a control message to them at the end of setup
+// for example some want us to set the input to specific report.
+// So do that here. 
+void WacomController::maybeSendSetupControlPackets() {
+  if (sendSetupPacket_) {
+    sendSetupPacket_ = false;
+      // This one is needed for my bamboo tablet
+      //bmRequestType=0x21 Data direction=Host to device, Type=Class, Recipient=Interface
+      //bRequest=0x09 SET_REPORT (HID class)
+      //wValue=0x0302 Report type=Feature, Report ID=0x02
+      //wIndex=0x0000 Interface=0x00
+      //wLength=0x0002
+      //byte=0x02
+      //byte=0x02  
+  
+    if (s_tablets_info[tablet_info_index_].report_id != 0) {
+      if (debugPrint_) Serial.printf("$$ Setup tablet report ID: %x to %x\n", s_tablets_info[tablet_info_index_].report_id,  
+            s_tablets_info[tablet_info_index_].report_value);
+      static const uint8_t set_report_data[2] = {s_tablets_info[tablet_info_index_].report_id, s_tablets_info[tablet_info_index_].report_value};
+      driver_->sendControlPacket(0x21, 9, 0x0302, 0, 2, (void*)set_report_data); 
+    }
+  }
+}
 
 void WacomController::disconnect_collection(Device_t *dev) {
   if (--collections_claimed == 0) {
@@ -99,24 +128,7 @@ void WacomController::hid_input_begin(uint32_t topusage, uint32_t type, int lgmi
   // TODO: check if absolute coordinates
   if (debugPrint_) Serial.printf("$HIB:%x type:%u min:%d max:%d\n", topusage, type, lgmin, lgmax);
   hid_input_begin_count_++;
-
-  // BUGBUG - see if first input and thry to force a report
-  if (firstInput_) {
-    firstInput_ = false;
-    	//bmRequestType=0x21 Data direction=Host to device, Type=Class, Recipient=Interface
-	    //bRequest=0x09 SET_REPORT (HID class)
-	    //wValue=0x0302 Report type=Feature, Report ID=0x02
-	    //wIndex=0x0000 Interface=0x00
-	    //wLength=0x0002
-	    //byte=0x02
-	    //byte=0x02
-    Serial.println("Setup to send different report");
-	
-	if(s_tablets_info[tablet_info_index_].report_id != 0) {
-		static const uint8_t set_report_data[2] = {s_tablets_info[tablet_info_index_].report_id, s_tablets_info[tablet_info_index_].report_value};
-		driver_->sendControlPacket(0x21, 9, 0x0302, 0, 2, (void*)set_report_data); 
-  }
- }
+  maybeSendSetupControlPackets();
 }
 
 #define WACOM_HID_SP_PAD 0x00040000
@@ -186,6 +198,14 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
   
   return false;  
 }
+
+// Added callback in case we wish to send messages and look at results
+// currently unused, but same as using the default interface implementation.
+bool WacomController::hid_process_control(const Transfer_t *transfer) {
+  // Serial.println("$$$ hid_process_control");
+  return false;
+}
+
 
 void WacomController::hid_input_data(uint32_t usage, int32_t value) {
 //  if (debugPrint_) Serial.printf("Digitizer: usage=%X, value=%d(%02x)\n", usage, value, value);

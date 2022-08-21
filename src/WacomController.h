@@ -65,7 +65,7 @@ protected:
   virtual void hid_input_data(uint32_t usage, int32_t value);
   virtual void hid_input_end();
   virtual void disconnect_collection(Device_t *dev);
-	//virtual bool hid_process_control(const Transfer_t *transfer);
+	virtual bool hid_process_control(const Transfer_t *transfer);
   virtual bool hid_process_in_data(const Transfer_t *transfer);
 
   typedef struct {
@@ -96,6 +96,8 @@ private:
   bool decodeH640P(const uint8_t *buffer, uint16_t len);
   bool decodeIntuos4100(const uint8_t *buffer, uint16_t len);
   
+  void maybeSendSetupControlPackets();
+
   uint8_t collections_claimed = 0;
   volatile bool digitizerEvent = false;
   volatile uint8_t hid_input_begin_count_ = 0;
@@ -116,7 +118,7 @@ private:
   int wheelH = 0;
   int digiAxes[16];
   bool debugPrint_ = true;
-  bool firstInput_ = true;
+  bool sendSetupPacket_ = true;
   USBHIDParser *driver_ = nullptr;
   uint16_t idProduct_;
   uint8_t tablet_info_index_ = 0xff;

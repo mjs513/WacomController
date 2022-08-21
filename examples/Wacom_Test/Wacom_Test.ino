@@ -33,8 +33,8 @@ void setup() {
   Serial1.begin(2000000);
   while (!Serial)
     ;  // wait for Arduino Serial Monitor
-  Serial.println("\n\nUSB Host Testing");
-  Serial.println(sizeof(USBHub), DEC);
+  Serial.println("\n\nWacom Tablet Test Program");
+  if (CrashReport) Serial.print(CrashReport);
   myusb.begin();
 }
 
