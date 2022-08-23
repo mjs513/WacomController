@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include <USBHost_t36.h>
 
+
+#define WACOM_STRING_BUF_SIZE 150
+
 // From USBHost WacomController
 class WacomController : public USBHIDInput, public BTHIDInput {
 public:
@@ -84,8 +87,7 @@ protected:
   } tablet_info_t;
 
   static const tablet_info_t s_tablets_info[];
-
-
+  
 private:
   void init();
   uint32_t wacom_equivalent_usage(uint32_t usage);
@@ -97,6 +99,8 @@ private:
   bool decodeIntuos4100(const uint8_t *buffer, uint16_t len);
   
   void maybeSendSetupControlPackets();
+  uint8_t getDescString(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, uint32_t wIndex, uint16_t length, uint8_t *buffer );
+
 
   uint8_t collections_claimed = 0;
   volatile bool digitizerEvent = false;

@@ -97,6 +97,10 @@ hidclaim_t WacomController::claim_collection(USBHIDParser *driver, Device_t *dev
 // for example some want us to set the input to specific report.
 // So do that here. 
 void WacomController::maybeSendSetupControlPackets() {
+	
+  uint8_t desc_len = 0;
+  uint8_t ret_buffer[WACOM_STRING_BUF_SIZE];
+  
   if (sendSetupPacket_) {
     sendSetupPacket_ = false;
       // This one is needed for my bamboo tablet
@@ -114,8 +118,68 @@ void WacomController::maybeSendSetupControlPackets() {
       static const uint8_t set_report_data[2] = {s_tablets_info[tablet_info_index_].report_id, s_tablets_info[tablet_info_index_].report_value};
       driver_->sendControlPacket(0x21, 9, 0x0302, 0, 2, (void*)set_report_data); 
     }
+	
+	// required for Huion tablets
+	if (s_tablets_info[tablet_info_index_].idVendor== 0x256c) {  
+	  if (debugPrint_) Serial.printf("$$$ Setup tablet Index: %d\n", tablet_info_index_);
+	  
+		desc_len = getDescString(0x80, 6, (3 << 8) + 201, 0x0409, 50, ret_buffer);
+		Serial.print("Firmware version: ");
+		for(uint8_t i=0; i < desc_len; i++) {
+			Serial.printf("%c",ret_buffer[i]);
+		} Serial.println();
+		
+		desc_len = getDescString(0x80, 6, (3 << 8) + 202, 0x0409, 100, ret_buffer);
+	    Serial.print("Internal Manufacture: ");
+		for(uint8_t i=0; i < desc_len; i++) {
+			Serial.printf("%c",ret_buffer[i]);
+		} Serial.println();
+				
+		//Mandatory to report ID 0x08, calls parameters
+		//try 100 for older tablets first - if 0 len then try 200
+		desc_len = getDescString(0x80, 6, (3 << 8) + 200, 0x0409, 18, ret_buffer);
+		if(desc_len == 0)
+			desc_len = getDescString(0x80, 6, (3 << 8) + 200, 0x0409, 18, ret_buffer);
+
+	}
+
   }
 }
+
+uint8_t WacomController::getDescString(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, 
+	uint32_t wIndex, uint16_t length, uint8_t *buffer ) {
+	uint8_t buf[length];
+	//uint8_t buffer[WACOM_STRING_BUF_SIZE]; 
+	bool rc;
+	uint8_t buf_index = 0;
+	
+	rc = driver_->sendControlPacket(bmRequestType, bRequest,  wValue, wIndex, length, buf);
+	delay(250);	// needed to give sendControlpacket time to fill buffer.
+	
+	// Try to verify - The first byte should be length and the 2nd byte should be 0x3
+	if ((buf[1] != 0x3)) {
+		return rc;	// No string so can simply return
+	}
+
+	uint8_t count_bytes_returned = buf[0];
+	//Serial.printf("Bytes returned: %d\n", count_bytes_returned);
+	if ((buf_index + count_bytes_returned/2) >= WACOM_STRING_BUF_SIZE)
+		count_bytes_returned = (WACOM_STRING_BUF_SIZE - buf_index) * 2;	
+
+	// Now copy into our storage buffer. 
+	for (uint8_t i = 2; (i < count_bytes_returned) && (buf_index < (WACOM_STRING_BUF_SIZE -1)); i += 2) {
+		buffer[buf_index++] = buf[i];
+	} 
+	buffer[buf_index] = 0;	// null terminate.
+	
+	//for(uint8_t i=0; i < buf_index; i++) {
+	//	Serial.printf("%c",buffer[i]);
+	//} Serial.println();
+
+	return buf_index;
+}
+	
+				
 
 void WacomController::disconnect_collection(Device_t *dev) {
   if (--collections_claimed == 0) {
@@ -202,7 +266,15 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
 // Added callback in case we wish to send messages and look at results
 // currently unused, but same as using the default interface implementation.
 bool WacomController::hid_process_control(const Transfer_t *transfer) {
-  // Serial.println("$$$ hid_process_control");
+  Serial.printf("$$$ hid_process_control msg: %x %x buff:%p len:%u : ", transfer->setup.word1, transfer->setup.word2, transfer->buffer, transfer->length);
+  uint8_t *buffer = (uint8_t *)transfer->buffer;
+  uint16_t len = transfer->length;
+  
+  if (buffer) {
+    while (len--) Serial.printf(" %02X", *buffer++);
+    Serial.println();
+  }
+
   return false;
 }
 
@@ -549,50 +621,74 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
 
 bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 
-  //if(data[0] != s_tablets_info[tablet_info_index_].report_id) return false;
-  if (len == 16) {
-    if (debugPrint_) Serial.print("H640P(16): ");
-    // the pen
-	//HID(d0002): 0A 00 (c1=Tip Switch, c3=lower Barrel Switch, c5 upper Barrel Switch)
-	// FF 7F (x)
-	// C9 39 (y)
-	// 00 00 (pressure)
-	// 00 00 00 00 00 00 00 00 
-    //bool range = (data[1] & 0x80) == 0x80;
-    bool prox = (data[1] & 0x40) == 0x40;
-    bool rdy = (data[1] & 0xC0) == 0xC0;
-    buttons = 0;
-    touch_count_ = 0;
-    pen_pressure_ = 0;
-    pen_distance_ = 0;
-    if (rdy) {
-      buttons = data[1] & 0xf;
-      pen_pressure_ = __get_unaligned_le16(&data[6]);
-      if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", buttons, pen_pressure_);
-    }
-    if (prox) {
-        touch_x_[0] = __get_unaligned_le16(&data[2]);
-        touch_y_[0] = __get_unaligned_le16(&data[4]);
-        if (debugPrint_) Serial.printf(" (%u, %u)", touch_x_[0], touch_y_[0]);
-        touch_count_ = 1;
-      digitizerEvent = true;  // only set true if we are close enough...
-    }
-	/*
-    if (range) {
-        if (data[8] <= s_tablets_info[tablet_info_index_].distance_max) {
-          pen_distance_ = s_tablets_info[tablet_info_index_].distance_max - data[8];
-          if (debugPrint_) Serial.printf(" Distance: %u", pen_distance_);
-        }
-    }
-	*/
-	pen_distance_ = 0;
-    event_type_ = PEN;
-    if (debugPrint_) Serial.println();
-    return true;
+  if(data[0] != 0x08) return false;
+  if (len == 64) {
+	  if(data[1] != 0xE0) {
+		if (debugPrint_) Serial.print("H640P(64): ");
+		// DATA INTERPRETATION:
+		// source: https://github.com/andresm/digimend-kernel-drivers/commit/b7c8b33c0392e2a5e4e448f901e3dfc206d346a6
+
+		// 00 01 02 03 04 05 06 07 08 09 10 11
+		// ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^
+		// |  |  |  |  |  |  |  |  |  |  |  |
+		// |  |  |  |  |  |  |  |  |  |  |  Y Tilt
+		// |  |  |  |  |  |  |  |  |  |  X Tilt
+		// |  |  |  |  |  |  |  |  |  Y HH
+		// |  |  |  |  |  |  |  |  X HH
+		// |  |  |  |  |  |  |  Pressure H
+		// |  |  |  |  |  |  Pressure L
+		// |  |  |  |  |  Y H
+		// |  |  |  |  Y L
+		// |  |  |  X H
+		// |  |  X L
+		// |  Pen buttons
+		// Report ID - 0x08
+
+		bool prox = (data[1] ) == 0x81;
+		bool rdy = (data[1]) >= 0x80;
+		buttons = 0;
+		touch_count_ = 0;
+		pen_pressure_ = 0;
+		pen_distance_ = 0;
+		if (rdy) {
+		  buttons = data[1] & 0xf;
+		  pen_pressure_ = __get_unaligned_le16(&data[6]);
+		  if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", buttons, pen_pressure_);
+		}
+		if (prox) {
+			touch_x_[0] = __get_unaligned_le16(&data[2]);
+			touch_y_[0] = __get_unaligned_le16(&data[4]);
+			if (debugPrint_) Serial.printf(" (%u, %u)", touch_x_[0], touch_y_[0]);
+			touch_count_ = 1;
+		  digitizerEvent = true;  // only set true if we are close enough...
+		}
+		/*
+		if (range) {
+			if (data[8] <= s_tablets_info[tablet_info_index_].distance_max) {
+			  pen_distance_ = s_tablets_info[tablet_info_index_].distance_max - data[8];
+			  if (debugPrint_) Serial.printf(" Distance: %u", pen_distance_);
+			}
+		}
+		*/
+		pen_distance_ = 0;
+		event_type_ = PEN;
+		if (debugPrint_) Serial.println();
+		return true;
+	  } else if(data[1] == 0xE0) {
+        //only process buttons, not stylus removal
+	 
+		//press the buttons
+		side_press_buttons_ = data[4];
+		//if (debugPrint_) {
+		  Serial.printf("Press:%u ", side_press_buttons_);
+		  Serial.println();
+		//}
+		event_type_ = SIDE_CTRL;
+		digitizerEvent = true;
+		// out of proximite 
+	  }
   }
   return false;
-	
-	
 }
 
 bool WacomController::decodeIntuos4(const uint8_t *data, uint16_t len)
