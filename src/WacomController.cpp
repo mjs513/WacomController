@@ -224,7 +224,7 @@ bool WacomController::hid_process_control(const Transfer_t *transfer) {
       {
         Serial.println("Special report: ");
         uint16_t PEN_X_LM = __get_unaligned_le16(&buffer_[2]);
-        uint16_t PH_Y_LM = __get_unaligned_le16(&buffer_[4]);
+        uint16_t PH_Y_LM = __get_unaligned_le16(&buffer_[5]);
         uint16_t PH_PRESSURE_LM = __get_unaligned_le16(&buffer_[8]);
         uint16_t resolution = __get_unaligned_le16(&buffer_[10]);
 
