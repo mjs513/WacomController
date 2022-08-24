@@ -4,7 +4,6 @@
 #include <USBHost_t36.h>
 
 
-#define WACOM_STRING_BUF_SIZE 150
 
 // From USBHost WacomController
 class WacomController : public USBHIDInput, public BTHIDInput {
@@ -98,11 +97,19 @@ private:
   bool decodeH640P(const uint8_t *buffer, uint16_t len);
   bool decodeIntuos4100(const uint8_t *buffer, uint16_t len);
   
+  enum {BUFFER_SIZE = 100};
+  uint8_t buffer_[BUFFER_SIZE];
+
   void maybeSendSetupControlPackets();
   uint8_t getDescString(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, uint32_t wIndex,
     uint16_t length, uint8_t *buffer );
   uint8_t getParameters(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, 
 	uint32_t wIndex, uint16_t length, uint8_t *buffer );
+
+  uint8_t convertBufferToAscii();
+
+  volatile uint8_t control_packet_pending_state_ = 0;
+  uint8_t ignore_count_ = 2; // hack ignore a few if unexpected type
 
   inline uint16_t __get_unaligned_be16(const uint8_t *p)
   {

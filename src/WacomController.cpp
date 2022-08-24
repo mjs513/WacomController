@@ -98,9 +98,6 @@ hidclaim_t WacomController::claim_collection(USBHIDParser *driver, Device_t *dev
 // So do that here. 
 void WacomController::maybeSendSetupControlPackets() {
 	
-  uint8_t desc_len = 0;
-  uint8_t ret_buffer[WACOM_STRING_BUF_SIZE];
-  
   if (sendSetupPacket_) {
     sendSetupPacket_ = false;
       // This one is needed for my bamboo tablet
@@ -119,104 +116,136 @@ void WacomController::maybeSendSetupControlPackets() {
       driver_->sendControlPacket(0x21, 9, 0x0302, 0, 2, (void*)set_report_data); 
     }
 	
-	// required for Huion tablets
-	if (s_tablets_info[tablet_info_index_].idVendor== 0x256c) {  
-	  if (debugPrint_) Serial.printf("$$$ Setup tablet Index: %d\n", tablet_info_index_);
-	  
-		desc_len = getDescString(0x80, 6, (3 << 8) + 201, 0x0409, 50, ret_buffer);
-		Serial.print("Firmware version: ");
-		for(uint8_t i=0; i < desc_len; i++) {
-			Serial.printf("%c",ret_buffer[i]);
-		} Serial.println();
-		
-		desc_len = getDescString(0x80, 6, (3 << 8) + 202, 0x0409, 100, ret_buffer);
-	    Serial.print("Internal Manufacture: ");
-		for(uint8_t i=0; i < desc_len; i++) {
-			Serial.printf("%c",ret_buffer[i]);
-		} Serial.println();
-				
-		//Mandatory to receive report ID 0x08, calls parameters
-		//try 100 for older tablets first - if 0 len then try 200
-		desc_len = getParameters(0x80, 6, (3 << 8) + 200, 0x0409, 18, ret_buffer);
-		if(desc_len == 0)
-			desc_len = getParameters(0x80, 6, (3 << 8) + 200, 0x0409, 18, ret_buffer);
-		
-	    uint16_t PEN_X_LM = __get_unaligned_le16(&ret_buffer[2]);
-		uint16_t PH_Y_LM = __get_unaligned_le16(&ret_buffer[4]);
-		uint16_t PH_PRESSURE_LM = __get_unaligned_le16(&ret_buffer[8]);
-		uint16_t resolution = __get_unaligned_le16(&ret_buffer[10]);
-
-		Serial.printf("Max X: %d\n", PEN_X_LM);
-		Serial.printf("Max Y: %d\n", PH_Y_LM);
-		Serial.printf("Max pressure: %d\n", PH_PRESSURE_LM);
-		Serial.printf("Resolution: %d\n\n", resolution);
-
-	}
-
+  	// required for Huion tablets
+  	if (s_tablets_info[tablet_info_index_].idVendor== 0x256c) {  
+  	  if (debugPrint_) Serial.printf("$$$ Setup tablet Index: %d\n", tablet_info_index_);
+  	
+      // Ask for firmware version.      
+      driver_->sendControlPacket(0x80, 6, (3 << 8) + 201, 0x0409, sizeof(buffer_), buffer_);
+      control_packet_pending_state_ = 1;
+      ignore_count_ = 2; // hack
+    }
   }
 }
 
 uint8_t WacomController::getDescString(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, 
 	uint32_t wIndex, uint16_t length, uint8_t *buffer ) {
-	uint8_t buf[length];
-	//uint8_t buffer[WACOM_STRING_BUF_SIZE]; 
-	bool rc;
+
 	uint8_t buf_index = 0;
-	
-	rc = driver_->sendControlPacket(bmRequestType, bRequest,  wValue, wIndex, length, buf);
-	delay(250);	// needed to give sendControlpacket time to fill buffer.
-	
-	// Try to verify - The first byte should be length and the 2nd byte should be 0x3
-	if ((buf[1] != 0x3)) {
-		return rc;	// No string so can simply return
-	}
 
-	uint8_t count_bytes_returned = buf[0];
-	//Serial.printf("Bytes returned: %d\n", count_bytes_returned);
-	if ((buf_index + count_bytes_returned/2) >= WACOM_STRING_BUF_SIZE)
-		count_bytes_returned = (WACOM_STRING_BUF_SIZE - buf_index) * 2;	
+	if (driver_->sendControlPacket(bmRequestType, bRequest,  wValue, wIndex, sizeof(buffer_), buffer_) == 0) 
+    return 0;
+  
+  control_packet_pending_state_ = 42;
 
-	// Now copy into our storage buffer. 
-	for (uint8_t i = 2; (i < count_bytes_returned) && (buf_index < (WACOM_STRING_BUF_SIZE -1)); i += 2) {
-		buffer[buf_index++] = buf[i];
-	} 
-	buffer[buf_index] = 0;	// null terminate.
-	
-	//for(uint8_t i=0; i < buf_index; i++) {
-	//	Serial.printf("%c",buffer[i]);
-	//} Serial.println();
+  elapsedMillis em;
+  while (control_packet_pending_state_ && (em < 250)) USBHost::Task();
 
-	return buf_index;
+  convertBufferToAscii();
+  length--;
+  for (buf_index = 0; buf_index < length; buf_index++) {
+    if (buffer_[buf_index] == 0) break;
+    *buffer++ = buffer_[buf_index];
+  }
+  *buffer = 0;
+  return buf_index;
 }
-	
+
 uint8_t WacomController::getParameters(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, 
-	uint32_t wIndex, uint16_t length, uint8_t *buffer ) {
-	uint8_t buf[length];
-	//uint8_t buffer[WACOM_STRING_BUF_SIZE]; 
-	bool rc;
-	uint8_t buf_index = 0;
-	
-	rc = driver_->sendControlPacket(bmRequestType, bRequest,  wValue, wIndex, length, buf);
-	delay(250);	// needed to give sendControlpacket time to fill buffer.
-	
-	// Try to verify - The first byte should be length and the 2nd byte should be 0x3
-	if ((buf[1] != 0x3)) {
-		return rc;	// No string so can simply return
-	}
+  uint32_t wIndex, uint16_t length, uint8_t *buffer ) {
 
-	uint8_t count_bytes_returned = buf[0];
-	// Now copy into our storage buffer. 
-	for (uint8_t i = 0; (i < count_bytes_returned) && (buf_index < (WACOM_STRING_BUF_SIZE -1)); i++) {
-		buffer[buf_index++] = buf[i];
-	} 
-	buffer[buf_index] = 0;	// null terminate.
-	
-	//for(uint8_t i=0; i < buf_index; i++) {
-	//	Serial.printf("%c",buffer[i]);
-	//} Serial.println();
+  if (driver_->sendControlPacket(bmRequestType, bRequest,  wValue, wIndex, sizeof(buffer_), buffer_) == 0) 
+    return 0;
+  
+  control_packet_pending_state_ = 42;
 
-	return buf_index;
-}				
+  elapsedMillis em;
+  while (control_packet_pending_state_ && (em < 250)) USBHost::Task();
+
+  uint8_t count_bytes_returned = buffer_[0];
+  if (count_bytes_returned > length) count_bytes_returned = length;
+
+  memcpy(buffer, buffer_, count_bytes_returned);
+
+  return count_bytes_returned;
+}       
+
+
+
+uint8_t WacomController::convertBufferToAscii() {
+  //uint8_t buffer[WACOM_STRING_BUF_SIZE]; 
+  uint8_t buf_index = 0;
+
+  // Try to verify - The first byte should be length and the 2nd byte should be 0x3
+  uint8_t count_bytes_returned = buffer_[0];
+  if ((buffer_[1] == 0x3) && (count_bytes_returned <= sizeof(buffer_))) {
+    for (uint8_t i = 2; i < count_bytes_returned; i += 2) {
+      buffer_[buf_index++] = buffer_[i];
+    } 
+  }
+  buffer_[buf_index] = 0;  // null terminate.
+  
+  return buf_index;
+}
+
+
+bool WacomController::hid_process_control(const Transfer_t *transfer) {
+  Serial.printf("$$$ hid_process_control msg: %x %x buff:%p len:%u : ", transfer->setup.word1, transfer->setup.word2, transfer->buffer, transfer->length);
+  uint8_t *buffer = (uint8_t *)transfer->buffer;
+  uint16_t len = transfer->length;
+  
+  if (buffer) {
+    while (len--) Serial.printf(" %02X", *buffer++);
+    Serial.println();
+  }
+  uint8_t desc_len = 0;
+  switch (control_packet_pending_state_) {
+    default: 
+      break;
+    case 1: 
+      desc_len = convertBufferToAscii();
+      Serial.print("Firmware version: ");
+      Serial.println((char*)buffer_);
+      //Internal Manufacture:
+      driver_->sendControlPacket(0x80, 6, (3 << 8) + 202, 0x0409, sizeof(buffer_), buffer_);
+      control_packet_pending_state_ = 2;
+      break;
+    case 2: 
+      desc_len = convertBufferToAscii();
+      Serial.print("Internal Manufacture: ");
+      Serial.println((char*)buffer_);
+      //Mandatory to report ID 0x08, calls parameters
+      //try 100 for older tablets first - if 0 len then try 200
+      driver_->sendControlPacket(0x80, 6, (3 << 8) + 200, 0x0409, sizeof(buffer_), buffer_);
+      control_packet_pending_state_ = 3;
+      break;
+
+    case 3: 
+      {
+        Serial.println("Special report: ");
+        uint16_t PEN_X_LM = __get_unaligned_le16(&buffer_[2]);
+        uint16_t PH_Y_LM = __get_unaligned_le16(&buffer_[4]);
+        uint16_t PH_PRESSURE_LM = __get_unaligned_le16(&buffer_[8]);
+        uint16_t resolution = __get_unaligned_le16(&buffer_[10]);
+
+        Serial.printf("Max X: %d\n", PEN_X_LM);
+        Serial.printf("Max Y: %d\n", PH_Y_LM);
+        Serial.printf("Max pressure: %d\n", PH_PRESSURE_LM);
+        Serial.printf("Resolution: %d\n\n", resolution);
+      }
+        if (desc_len == 0) Serial.println("Maybe send other version?");
+      break;
+
+    case 42: // answer to any question getDescString
+      // do processing in  getDescString
+      control_packet_pending_state_ = 0;
+
+  }
+
+  return false;
+}
+
+	
 
 void WacomController::disconnect_collection(Device_t *dev) {
   if (--collections_claimed == 0) {
@@ -298,21 +327,6 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
   }
   
   return false;  
-}
-
-// Added callback in case we wish to send messages and look at results
-// currently unused, but same as using the default interface implementation.
-bool WacomController::hid_process_control(const Transfer_t *transfer) {
-  Serial.printf("$$$ hid_process_control msg: %x %x buff:%p len:%u : ", transfer->setup.word1, transfer->setup.word2, transfer->buffer, transfer->length);
-  uint8_t *buffer = (uint8_t *)transfer->buffer;
-  uint16_t len = transfer->length;
-  
-  if (buffer) {
-    while (len--) Serial.printf(" %02X", *buffer++);
-    Serial.println();
-  }
-
-  return false;
 }
 
 
@@ -649,6 +663,14 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
 
 bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 
+
+  if(data[0] == 0x03) {
+    if (ignore_count_) {
+      ignore_count_--;
+      return true;
+    }
+    return false;
+  }
   if(data[0] != 0x08) return false;
   if (len == 64) {
 	  if(data[1] != 0xE0) {
