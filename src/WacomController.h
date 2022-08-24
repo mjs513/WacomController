@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <USBHost_t36.h>
 
+
+
 // From USBHost WacomController
 class WacomController : public USBHIDInput, public BTHIDInput {
 public:
@@ -84,8 +86,7 @@ protected:
   } tablet_info_t;
 
   static const tablet_info_t s_tablets_info[];
-
-
+  
 private:
   void init();
   uint32_t wacom_equivalent_usage(uint32_t usage);
@@ -96,7 +97,29 @@ private:
   bool decodeH640P(const uint8_t *buffer, uint16_t len);
   bool decodeIntuos4100(const uint8_t *buffer, uint16_t len);
   
+  enum {BUFFER_SIZE = 100};
+  uint8_t buffer_[BUFFER_SIZE];
+
   void maybeSendSetupControlPackets();
+  uint8_t getDescString(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, uint32_t wIndex,
+    uint16_t length, uint8_t *buffer );
+  uint8_t getParameters(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, 
+	uint32_t wIndex, uint16_t length, uint8_t *buffer );
+
+  uint8_t convertBufferToAscii();
+
+  volatile uint8_t control_packet_pending_state_ = 0;
+  uint8_t ignore_count_ = 2; // hack ignore a few if unexpected type
+
+  inline uint16_t __get_unaligned_be16(const uint8_t *p)
+  {
+	return p[0] << 8 | p[1];
+  }
+
+  inline uint16_t __get_unaligned_le16(const uint8_t *p)
+  {
+	return p[0] | p[1] << 8;
+  }
 
   uint8_t collections_claimed = 0;
   volatile bool digitizerEvent = false;
