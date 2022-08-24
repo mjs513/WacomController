@@ -135,11 +135,21 @@ void WacomController::maybeSendSetupControlPackets() {
 			Serial.printf("%c",ret_buffer[i]);
 		} Serial.println();
 				
-		//Mandatory to report ID 0x08, calls parameters
+		//Mandatory to receive report ID 0x08, calls parameters
 		//try 100 for older tablets first - if 0 len then try 200
-		desc_len = getDescString(0x80, 6, (3 << 8) + 200, 0x0409, 18, ret_buffer);
+		desc_len = getParameters(0x80, 6, (3 << 8) + 200, 0x0409, 18, ret_buffer);
 		if(desc_len == 0)
-			desc_len = getDescString(0x80, 6, (3 << 8) + 200, 0x0409, 18, ret_buffer);
+			desc_len = getParameters(0x80, 6, (3 << 8) + 200, 0x0409, 18, ret_buffer);
+		
+	    uint16_t PEN_X_LM = __get_unaligned_le16(&ret_buffer[2]);
+		uint16_t PH_Y_LM = __get_unaligned_le16(&ret_buffer[4]);
+		uint16_t PH_PRESSURE_LM = __get_unaligned_le16(&ret_buffer[8]);
+		uint16_t resolution = __get_unaligned_le16(&ret_buffer[10]);
+
+		Serial.printf("Max X: %d\n", PEN_X_LM);
+		Serial.printf("Max Y: %d\n", PH_Y_LM);
+		Serial.printf("Max pressure: %d\n", PH_PRESSURE_LM);
+		Serial.printf("Resolution: %d\n\n", resolution);
 
 	}
 
@@ -179,7 +189,34 @@ uint8_t WacomController::getDescString(uint32_t bmRequestType, uint32_t bRequest
 	return buf_index;
 }
 	
-				
+uint8_t WacomController::getParameters(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, 
+	uint32_t wIndex, uint16_t length, uint8_t *buffer ) {
+	uint8_t buf[length];
+	//uint8_t buffer[WACOM_STRING_BUF_SIZE]; 
+	bool rc;
+	uint8_t buf_index = 0;
+	
+	rc = driver_->sendControlPacket(bmRequestType, bRequest,  wValue, wIndex, length, buf);
+	delay(250);	// needed to give sendControlpacket time to fill buffer.
+	
+	// Try to verify - The first byte should be length and the 2nd byte should be 0x3
+	if ((buf[1] != 0x3)) {
+		return rc;	// No string so can simply return
+	}
+
+	uint8_t count_bytes_returned = buf[0];
+	// Now copy into our storage buffer. 
+	for (uint8_t i = 0; (i < count_bytes_returned) && (buf_index < (WACOM_STRING_BUF_SIZE -1)); i++) {
+		buffer[buf_index++] = buf[i];
+	} 
+	buffer[buf_index] = 0;	// null terminate.
+	
+	//for(uint8_t i=0; i < buf_index; i++) {
+	//	Serial.printf("%c",buffer[i]);
+	//} Serial.println();
+
+	return buf_index;
+}				
 
 void WacomController::disconnect_collection(Device_t *dev) {
   if (--collections_claimed == 0) {
@@ -353,15 +390,6 @@ void WacomController::hid_input_end() {
   digiAxes_index_ = 0;
 }
 
-inline uint16_t __get_unaligned_be16(const uint8_t *p)
-{
-	return p[0] << 8 | p[1];
-}
-
-inline uint16_t __get_unaligned_le16(const uint8_t *p)
-{
-	return p[0] | p[1] << 8;
-}
 
 bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
   // only process report 2

@@ -99,8 +99,20 @@ private:
   bool decodeIntuos4100(const uint8_t *buffer, uint16_t len);
   
   void maybeSendSetupControlPackets();
-  uint8_t getDescString(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, uint32_t wIndex, uint16_t length, uint8_t *buffer );
+  uint8_t getDescString(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, uint32_t wIndex,
+    uint16_t length, uint8_t *buffer );
+  uint8_t getParameters(uint32_t bmRequestType, uint32_t bRequest, uint32_t wValue, 
+	uint32_t wIndex, uint16_t length, uint8_t *buffer );
 
+  inline uint16_t __get_unaligned_be16(const uint8_t *p)
+  {
+	return p[0] << 8 | p[1];
+  }
+
+  inline uint16_t __get_unaligned_le16(const uint8_t *p)
+  {
+	return p[0] | p[1] << 8;
+  }
 
   uint8_t collections_claimed = 0;
   volatile bool digitizerEvent = false;
