@@ -223,7 +223,7 @@ void switchView() {
 // ProcessTabletData
 //=============================================================================
 void ProcessTabletData() {
-  digi1.debugPrint(false);
+  digi1.debugPrint(true);
   bool update_screen;
   if (digi1.available()) {
     if (show_alternate_view) update_screen = ShowSimpleGraphicScreen();
@@ -510,12 +510,23 @@ bool ShowSimpleGraphicScreen() {
       int pen_y = digi1.getY();
       int x_in_tablet = map(pen_x, 0, digi1.width(), 0, tab_draw_width) + x;
       int y_in_tablet = map(pen_y, 0, digi1.height(), 0, tab_draw_height) + y_start_graphics;
-      Serial.printf("Pen: (%d, %d) W:%u, H:%u -> (%d, %d)\n", pen_x, pen_y, digi1.width(), digi1.height(), x_in_tablet, y_in_tablet);      
+      //Serial.printf("Pen: (%d, %d) W:%u, H:%u -> (%d, %d)\n", pen_x, pen_y, digi1.width(), digi1.height(), x_in_tablet, y_in_tablet);      
       tft.fillRect(x_in_tablet-1, y_in_tablet-10, 3, 21, BLUE);
       tft.fillRect(x_in_tablet-10, y_in_tablet-1, 21, 3, BLUE);
     }
     
   } else if (evt == WacomController::TOUCH) {
+    uint8_t touch_count = digi1.getTouchCount();
+    for (uint8_t i = 0; i < touch_count; i++) {
+      int finger_x = digi1.getX(i);
+      int finger_y = digi1.getY(i);
+      int x_in_tablet = map(finger_x, 0, digi1.touchWidth(), 0, tab_draw_width) + x;
+      int y_in_tablet = map(finger_y, 0, digi1.touchHeight(), 0, tab_draw_height) + y_start_graphics;
+      //Serial.printf("Pen: (%d, %d) W:%u, H:%u -> (%d, %d)\n", finger_x, finger_y, digi1.width(), digi1.height(), x_in_tablet, y_in_tablet);      
+      tft.fillRect(x_in_tablet-1, y_in_tablet-10, 3, 21, RED);
+      tft.fillRect(x_in_tablet-10, y_in_tablet-1, 21, 3, RED);
+      
+    }
     
   }
   tft.setClipRect();

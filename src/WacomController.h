@@ -73,6 +73,8 @@ public:
   bool getPenSupportsTilt() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].pen_supports_tilt : false; }
   int width() {return tablet_width_; }
   int height() {return tablet_height_; }
+  int touchWidth() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].touch_tablet_width : -1; }
+  int touchHeight() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].touch_tablet_height : -1; }
 
   int getWheel() {
     return wheel;
@@ -114,6 +116,8 @@ protected:
     uint8_t pen_buttons;
     uint8_t frame_buttons;
     bool pen_supports_tilt;
+    uint16_t touch_tablet_width;
+    uint16_t touch_tablet_height;
   } tablet_info_t;
 
   static const tablet_info_t s_tablets_info[];
