@@ -123,6 +123,7 @@ private:
   uint32_t wacom_equivalent_usage(uint32_t usage);
   bool decodeBamboo_PT(const uint8_t *buffer, uint16_t len);
   bool decodeIntuosHT(const uint8_t *buffer, uint16_t len);
+  bool decodeWacomPTS(const uint8_t *buffer, uint16_t len);
   bool decodeIntuos5(const uint8_t *buffer, uint16_t len);
   bool decodeIntuos4(const uint8_t *buffer, uint16_t len);
   bool decodeH640P(const uint8_t *buffer, uint16_t len);

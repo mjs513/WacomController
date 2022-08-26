@@ -17,6 +17,7 @@ enum {
 	BAMBOO_PT,
 	WACOM_24HDT,
 	WACOM_27QHDT,
+	WACOM_PTS,
 	BAMBOO_PAD,
 	H640P,
   INTUOS4100,
@@ -29,7 +30,7 @@ enum {
 const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
   {0x056A, 0x27 /*"Wacom Intuos5 touch M"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS5,  7, 4, 8, true },
   {0x056A, 0xD8 /*"Wacom Bamboo Comic 2FG"*/, 21648, 13700, 1023, 31, 2, 2, BAMBOO_PT, 2, 4, 4, false},
-  {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, INTUOSHT, 7, 4, 8, true},
+  {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, WACOM_PTS, 7, 3, 4, false},
   {0x256c, 0x006d /* "Huion HS64 and H640P"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, 0, 3, 6, false },
   {0x056A, 0xBA /*"Wacom Intuos4 L"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS4L,   7, 4, 8, true },
    // Added for 4100, data to be verified.
@@ -352,6 +353,9 @@ bool WacomController::hid_process_in_data(const Transfer_t *transfer)
     case BAMBOO_PT:
       return decodeBamboo_PT(buffer, transfer->length);
       break;
+	case WACOM_PTS:
+      return decodeWacomPTS(buffer, transfer->length);
+      break;
     case INTUOSHT:
       return decodeIntuosHT(buffer, transfer->length);
       break;
@@ -510,6 +514,90 @@ bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
     event_type_ = PEN;
     if (debugPrint_) Serial.println();
     return true;
+  }
+  return false;
+}
+
+bool WacomController::decodeWacomPTS(const uint8_t *data, uint16_t len) {
+  // only process report 2
+  if (data[0] != 2) return false;
+  // long format
+  //HPID(64): 02 80 58 82 76 01 52 82 75 01 50 00 00 00 00 11 1F 11 21 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
+  uint8_t offset = 2; 
+  bool touch_changed = false;
+  if (len == 64) {
+	if((data[2] & 0x81) != 0x80) {
+		uint8_t count =  data[1] & 0x7;
+		touch_count_ = 0;
+		if (debugPrint_) Serial.printf("INTOSH PTS(64):");
+		for (uint8_t i = 0; i < count; i++) {
+		  if ((data[offset] >= 2) && (data[offset] <= 17)) {
+			if (data[offset + 1] & 0x80) {
+			  touch_changed = true;
+			  touch_x_[touch_count_] = (data[offset + 2] << 4) | (data[offset + 4] >> 4);
+			  touch_y_[touch_count_] = (data[offset + 3] << 4) | (data[offset + 4] & 0x0f);
+			  if (debugPrint_) Serial.printf(" %u(%u):(%u, %u)", i, touch_count_, touch_x_[touch_count_], touch_y_[touch_count_]);
+			  touch_count_++;
+			}
+		  }
+		  // Else we will ignore the slot
+		  offset += 8;
+		}
+
+		if (debugPrint_) Serial.println();
+		if (touch_changed) {
+		  // is there anything to report?
+		  event_type_ = TOUCH;
+		  //digitizerEvent = true;
+		}	
+	} else {
+		frame_buttons_ = data[3];
+		if(debugPrint_) Serial.printf("Frame buttons: %d\n", frame_buttons_);
+		event_type_ = FRAME;
+	}
+	digitizerEvent = true;
+	return true;
+
+  }  else if (len <= 16) {
+		if (debugPrint_) Serial.printf("INTOSH PTS( %d ): ", len);
+		if(data[1] != 0x01) {
+			// the pen
+			//HPID(9): 02 F0 1A 20 62 1B 00 00 0
+			bool range = (data[1] & 0x80) == 0x80;
+			bool prox = (data[1] & 0x40) == 0x40;
+			bool rdy = (data[1] & 0x20) == 0x20;
+			pen_buttons_ = 0;
+			touch_count_ = 0;
+			pen_pressure_ = 0;
+			pen_distance_ = 0;
+			if (rdy) {
+			  pen_buttons_ = data[1] & 0xf;
+			  pen_pressure_ = __get_unaligned_le16(&data[6]);
+			  if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", pen_buttons_, pen_pressure_);
+			}
+			if (prox) {
+				touch_x_[0] = __get_unaligned_le16(&data[2]);
+				touch_y_[0] = __get_unaligned_le16(&data[4]);
+				if (debugPrint_) Serial.printf(" (%u, %u)", touch_x_[0], touch_y_[0]);
+				touch_count_ = 1;
+			  //digitizerEvent = true;  // only set true if we are close enough...
+			}
+			if (range) {
+				if (data[8] <= s_tablets_info[tablet_info_index_].distance_max) {
+				  pen_distance_ = s_tablets_info[tablet_info_index_].distance_max - data[8];
+				  if (debugPrint_) Serial.printf(" Distance: %u", pen_distance_);
+				}
+			}
+			event_type_ = PEN;
+			if (debugPrint_) Serial.println();
+		} else {
+			frame_buttons_ = data[3];
+			if(debugPrint_) Serial.printf("Frame buttons: %d\n", frame_buttons_);
+			event_type_ = FRAME;
+		}
+		digitizerEvent = true;
+		return true;
   }
   return false;
 }
