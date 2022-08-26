@@ -223,7 +223,7 @@ void switchView() {
 // ProcessTabletData
 //=============================================================================
 void ProcessTabletData() {
-  digi1.debugPrint(true);
+  digi1.debugPrint(false);
   bool update_screen;
   if (digi1.available()) {
     if (show_alternate_view) update_screen = ShowSimpleGraphicScreen();
@@ -451,7 +451,6 @@ bool ShowSimpleGraphicScreen() {
   tft.setTextColor(YELLOW);
   tft.setFont(Arial_12);
 
-  Serial.println("called ShowSimpleGraphics");
   tft.printf("(%x:%x): ", digi1.idVendor(), digi1.idProduct());
   const uint8_t *psz;
   psz = digi1.product();
@@ -467,7 +466,7 @@ bool ShowSimpleGraphicScreen() {
   else button_height = (tft.height() - y_start_graphics) / cnt_pen_buttons;
   if (button_height > BUTTON_HEIGHT) button_height = BUTTON_HEIGHT;
 
-  Serial.printf("P:%d F:%d H:%d\n", cnt_pen_buttons, cnt_frame_buttons, button_height);
+  //Serial.printf("P:%d F:%d H:%d\n", cnt_pen_buttons, cnt_frame_buttons, button_height);
   // Lets output pen buttons first
   uint32_t buttons = digi1.getPenButtons();
   bool pen_touching = buttons & 1;
