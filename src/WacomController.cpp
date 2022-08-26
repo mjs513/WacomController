@@ -721,68 +721,67 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
   if(data[0] != 0x08) return false;
   if (len == 64) {
 	  if(data[1] != 0xE0) {
-		if (debugPrint_) Serial.print("H640P(64): ");
-		// DATA INTERPRETATION:
-		// source: https://github.com/andresm/digimend-kernel-drivers/commit/b7c8b33c0392e2a5e4e448f901e3dfc206d346a6
+  		if (debugPrint_) Serial.print("H640P(64): ");
+  		// DATA INTERPRETATION:
+  		// source: https://github.com/andresm/digimend-kernel-drivers/commit/b7c8b33c0392e2a5e4e448f901e3dfc206d346a6
 
-		// 00 01 02 03 04 05 06 07 08 09 10 11
-		// ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^
-		// |  |  |  |  |  |  |  |  |  |  |  |
-		// |  |  |  |  |  |  |  |  |  |  |  Y Tilt
-		// |  |  |  |  |  |  |  |  |  |  X Tilt
-		// |  |  |  |  |  |  |  |  |  Y HH
-		// |  |  |  |  |  |  |  |  X HH
-		// |  |  |  |  |  |  |  Pressure H
-		// |  |  |  |  |  |  Pressure L
-		// |  |  |  |  |  Y H
-		// |  |  |  |  Y L
-		// |  |  |  X H
-		// |  |  X L
-		// |  Pen buttons
-		// Report ID - 0x08
+  		// 00 01 02 03 04 05 06 07 08 09 10 11
+  		// ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^  ^
+  		// |  |  |  |  |  |  |  |  |  |  |  |
+  		// |  |  |  |  |  |  |  |  |  |  |  Y Tilt
+  		// |  |  |  |  |  |  |  |  |  |  X Tilt
+  		// |  |  |  |  |  |  |  |  |  Y HH
+  		// |  |  |  |  |  |  |  |  X HH
+  		// |  |  |  |  |  |  |  Pressure H
+  		// |  |  |  |  |  |  Pressure L
+  		// |  |  |  |  |  Y H
+  		// |  |  |  |  Y L
+  		// |  |  |  X H
+  		// |  |  X L
+  		// |  Pen buttons
+  		// Report ID - 0x08
 
-		bool prox = (data[1]  & 0x80) == 0x80;
-		bool rdy = (data[1]) >= 0x80;
-		pen_buttons_ = 0;
-		touch_count_ = 0;
-		pen_pressure_ = 0;
-		pen_distance_ = 0;
-		if (rdy) {
-		  pen_buttons_ = data[1] & 0xf;
-		  pen_pressure_ = __get_unaligned_le16(&data[6]);
-		  if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", pen_buttons_, pen_pressure_);
-		}
-		if (prox) {
-			touch_x_[0] = __get_unaligned_le16(&data[2]);
-			touch_y_[0] = __get_unaligned_le16(&data[4]);
-			if(data[1] == 0x80) pen_buttons_ = 0;
-			if (debugPrint_) Serial.printf(" (%u, %u)", touch_x_[0], touch_y_[0]);
-			touch_count_ = 1;
-		    digitizerEvent = true;  // only set true if we are close enough...
-		}
-		/*
-		if (range) {
-			if (data[8] <= s_tablets_info[tablet_info_index_].distance_max) {
-			  pen_distance_ = s_tablets_info[tablet_info_index_].distance_max - data[8];
-			  if (debugPrint_) Serial.printf(" Distance: %u", pen_distance_);
-			}
-		}
-		*/
-		pen_distance_ = 0;
-		event_type_ = PEN;
-		if (debugPrint_) Serial.println();
-		return true;
-	  } else if(data[1] == 0xE0) {
-        //only process buttons, not stylus removal
-	 
-		//press the buttons
-		frame_buttons_ = data[4];
-		//if (debugPrint_) {
-		  Serial.printf("Press:%u ", frame_buttons_);
-		  Serial.println();
-		//}
-		event_type_ = FRAME;
-		digitizerEvent = true;
+  		bool prox = (data[1]  & 0x80) == 0x80;
+  		bool rdy = (data[1]) >= 0x80;
+  		pen_buttons_ = 0;
+  		touch_count_ = 0;
+  		pen_pressure_ = 0;
+  		pen_distance_ = 0;
+  		if (rdy) {
+  		  pen_buttons_ = data[1] & 0xf;
+  		  pen_pressure_ = __get_unaligned_le16(&data[6]);
+  		  if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", pen_buttons_, pen_pressure_);
+  		}
+  		if (prox) {
+  			touch_x_[0] = __get_unaligned_le16(&data[2]);
+  			touch_y_[0] = __get_unaligned_le16(&data[4]);
+  			if(data[1] == 0x80) pen_buttons_ = 0;
+  			if (debugPrint_) Serial.printf(" (%u, %u)", touch_x_[0], touch_y_[0]);
+  			touch_count_ = 1;
+  		  digitizerEvent = true;  // only set true if we are close enough...
+      }
+  		/*
+  		if (range) {
+  			if (data[8] <= s_tablets_info[tablet_info_index_].distance_max) {
+  			  pen_distance_ = s_tablets_info[tablet_info_index_].distance_max - data[8];
+  			  if (debugPrint_) Serial.printf(" Distance: %u", pen_distance_);
+  			}
+  		}
+  		*/
+    	pen_distance_ = 0;
+  		event_type_ = PEN;
+  		if (debugPrint_) Serial.println();
+  		return true;
+    } else if(data[1] == 0xE0) {
+      //only process buttons, not stylus removal
+  		//press the buttons
+  		frame_buttons_ = data[4];
+  		//if (debugPrint_) {
+  		  Serial.printf("Press:%u ", frame_buttons_);
+  		  Serial.println();
+  		//}
+  		event_type_ = FRAME;
+  		digitizerEvent = true;
 		// out of proximite 
 	  }
   }

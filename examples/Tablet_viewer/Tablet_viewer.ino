@@ -47,6 +47,7 @@
 #endif
 #define LIGHTGREY 0xC618   /* 192, 192, 192 */
 #define DARKGREY 0x7BEF    /* 128, 128, 128 */
+#define BLUE 0x001F        /*   0,   0, 255 */
 
 //=============================================================================
 // Connection configuration of ILI9341 LCD TFT
@@ -475,7 +476,7 @@ bool ShowSimpleGraphicScreen() {
   uint8_t index = 0;
   for (index = 0; index < cnt_pen_buttons; index++) {
     tft.drawRect(x, y, BUTTON_WIDTH, button_height, GREEN);
-    if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, button_height - 2, YELLOW);
+    if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, button_height - 2, BLUE);
     buttons >>= 1;
     y -= button_height;     
   }
@@ -510,8 +511,8 @@ bool ShowSimpleGraphicScreen() {
       int x_in_tablet = map(pen_x, 0, digi1.width(), 0, tab_draw_width) + x;
       int y_in_tablet = map(pen_y, 0, digi1.height(), 0, tab_draw_height) + y_start_graphics;
       Serial.printf("Pen: (%d, %d) W:%u, H:%u -> (%d, %d)\n", pen_x, pen_y, digi1.width(), digi1.height(), x_in_tablet, y_in_tablet);      
-      tft.drawLine(x_in_tablet, y_in_tablet-10, x_in_tablet, y_in_tablet+10, RED);
-      tft.drawLine(x_in_tablet+10, y_in_tablet, x_in_tablet+10, y_in_tablet, RED);
+      tft.fillRect(x_in_tablet-1, y_in_tablet-10, 3, 21, BLUE);
+      tft.fillRect(x_in_tablet-10, y_in_tablet-1, 21, 3, BLUE);
     }
     
   } else if (evt == WacomController::TOUCH) {
