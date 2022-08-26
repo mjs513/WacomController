@@ -29,6 +29,7 @@ USBHIDInput *hiddrivers[] = { &digi1 };
 const char *hid_driver_names[CNT_DEVICES] = { "digi1" };
 bool hid_driver_active[CNT_DEVICES] = { false };
 bool show_changed_only = false;
+
 void setup() {
   Serial1.begin(2000000);
   while (!Serial)
@@ -105,7 +106,7 @@ void loop() {
   if (digi1.available()) {
     int touch_count = digi1.getTouchCount();
     int touch_index;
-    uint16_t buttons_bin = digi1.getButtons();
+    uint16_t buttons_bin = digi1.getPenButtons();
     bool pen_button[3];
     Serial.printf("Digitizer: ");
     for (int i = 0; i < 3; i++) {
@@ -124,18 +125,18 @@ void loop() {
       case WacomController::PEN:
         Serial.printf(" Pen: (%d, %d) Pressure: %u Distance: %u", digi1.getX(), digi1.getY(),
             digi1.getPenPressure(), digi1.getPenDistance());
-        Serial.printf(" TiltX: %d TiltY: %d",digi1.getTiltX(), digi1.getTiltY());
+        Serial.printf(" TiltX: %d TiltY: %d",digi1.getPenTiltX(), digi1.getPenTiltY());
         break;
-      case WacomController::SIDE_CTRL:
+      case WacomController::FRAME:
         {
         //wheel data 0-71
-        Serial.printf(" Whl: %d ", digi1.getIntuosWheel());
+        Serial.printf(" Whl: %d ", digi1.getFrameWheel());
         //wheel button binary, no touch functionality
-        Serial.printf(" WhlBtn: %d ", digi1.getIntuosWheelButton());
+        Serial.printf(" WhlBtn: %d ", digi1.getFrameWheelButton());
       
         //buttons are saved within one byte for all the 8 buttons, here is a decoding example
-        uint16_t button_touch_bin = digi1.getIntuosButtonTouch();
-        uint16_t button_press_bin = digi1.getIntuosButtonPress();
+        uint16_t button_touch_bin = digi1.getFrameTouchButtons();
+        uint16_t button_press_bin = digi1.getFrameButtons();
         bool button_touched[8];
         bool button_pressed[8];
         for (int i = 0; i < 8; i++) {

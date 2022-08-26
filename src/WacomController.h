@@ -11,36 +11,52 @@ public:
   WacomController(USBHost &host) {
     init();
   }
+
+  // Has there been a new event from the tablet
   bool available() {
     return digitizerEvent;
   }
 
-  typedef enum {NONE= 0, MOUSE, TOUCH, PEN, SIDE_CTRL} event_type_t;
+  // WHat type of event
+  // TOUCH - For those tablets that support using finger(s)
+  // PEN - Pen Input
+  // FRAME - Buttons or other controls on edges of tablet
+  typedef enum {NONE= 0, MOUSE, TOUCH, PEN, FRAME} event_type_t;
   event_type_t eventType() {return event_type_;}
 
+  // Clear the tablet data for the last event
   void digitizerDataClear();
-  uint32_t getButtons() {
-    return buttons;
-  }
 
+  // Methods for Touch and Pen
+
+  // Number of touches (1 for Pen)
   int getTouchCount() {return touch_count_;}
 
+  // Retrieve the X for the give touch index (defaults to first)
   int getX(uint8_t index = 0) {
     return (index < MAX_TOUCH)? touch_x_[index] : 0xffff;
   }
+
+  // Retrieve the Y for the give touch index (defaults to first)
   int getY(uint8_t index = 0) {
     return (index < MAX_TOUCH)? touch_y_[index] : 0xffff ;
   }
 
+  // O
+  uint32_t getPenButtons() {
+    return buttons;
+  }
+
+
   uint16_t getPenPressure() { return pen_pressure_;  }  
   uint16_t getPenDistance() { return pen_distance_; }
-  int16_t getTiltX() { return pen_tilt_x_; }
-  int16_t getTiltY() { return pen_tilt_y_; }
+  int16_t getPenTiltX() { return pen_tilt_x_; }
+  int16_t getPenTiltY() { return pen_tilt_y_; }
 
-  uint16_t getIntuosWheel() { return side_wheel_; }
-  bool getIntuosWheelButton() { return side_wheel_button_;}
-  uint16_t getIntuosButtonTouch() { return side_touch_buttons_; }
-  uint16_t getIntuosButtonPress() { return side_press_buttons_; }
+  uint16_t getFrameWheel() { return side_wheel_; }
+  bool getFrameWheelButton() { return side_wheel_button_;}
+  uint16_t getFrameTouchButtons() { return side_touch_buttons_; }
+  uint16_t getFrameButtons() { return side_press_buttons_; }
     
   
 

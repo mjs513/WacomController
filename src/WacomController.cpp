@@ -30,7 +30,7 @@ const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
   {0x056A, 0x27 /*"Wacom Intuos5 touch M"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS5, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
   {0x056A, 0xD8 /*"Wacom Bamboo Comic 2FG"*/, 21648, 13700, 1023, 31, 2, 2, BAMBOO_PT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 2},
   {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, INTUOSHT, WACOM_INTUOS_RES, WACOM_INTUOS_RES, 16},
-  {0x256c, 0x006d /* "Wacom Bamboo Pen 6x8"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES },
+  {0x256c, 0x006d /* "Huion HS64 and H640P"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, WACOM_INTUOS_RES, WACOM_INTUOS_RES },
   {0x056A, 0xBA /*"Wacom Intuos4 L"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS4L, WACOM_INTUOS3_RES, WACOM_INTUOS3_RES,  16 },
    // Added for 4100, data to be verified.
   {0x056A, 0x374, 15200, 9500, 1023, 31, 0, 0, INTUOS4100,  WACOM_INTUOS_RES, WACOM_INTUOS_RES, 0}
@@ -113,6 +113,7 @@ void WacomController::maybeSendSetupControlPackets() {
       if (debugPrint_) Serial.printf("$$ Setup tablet report ID: %x to %x\n", s_tablets_info[tablet_info_index_].report_id,  
             s_tablets_info[tablet_info_index_].report_value);
       static const uint8_t set_report_data[2] = {s_tablets_info[tablet_info_index_].report_id, s_tablets_info[tablet_info_index_].report_value};
+      control_packet_pending_state_ = 0;
       driver_->sendControlPacket(0x21, 9, 0x0302, 0, 2, (void*)set_report_data); 
     }
 	
@@ -427,8 +428,14 @@ bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
   		  offset += (data[1] & 0x80) ? 8 : 9;
       }
     }
+    if (touch_count_) {
+      event_type_ = TOUCH;
+
+    } else {
+      side_press_buttons_ = buttons;
+      event_type_ = FRAME;
+    }
     if (debugPrint_) Serial.println();
-    event_type_ = TOUCH;
     digitizerEvent = true;
     return true;
   } else if (len == 9) {
@@ -630,7 +637,7 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
       Serial.println();
       
      }
-      event_type_ = SIDE_CTRL;
+      event_type_ = FRAME;
         digitizerEvent = true;
       }
       // out of proximite 
@@ -733,7 +740,7 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 		  Serial.printf("Press:%u ", side_press_buttons_);
 		  Serial.println();
 		//}
-		event_type_ = SIDE_CTRL;
+		event_type_ = FRAME;
 		digitizerEvent = true;
 		// out of proximite 
 	  }
@@ -817,7 +824,7 @@ if (data[0] == 0x02) {
       Serial.println();
       
      }
-      event_type_ = SIDE_CTRL;
+      event_type_ = FRAME;
         digitizerEvent = true;
       }
     if (debugPrint_) Serial.println();
@@ -854,10 +861,10 @@ bool WacomController::decodeIntuos4100(const uint8_t *data, uint16_t len)
     }
   case 17:
     {
-      buttons = data[1] & 0xf;
+      side_press_buttons_ = data[4];
+      if (debugPrint_) Serial.printf("Press:%u ", side_press_buttons_);
+      event_type_ = FRAME;
       touch_count_ = 0;
-      if (debugPrint_) Serial.printf("4100 Touch: BTNS: %x\n", buttons);
-      event_type_ = TOUCH;
       digitizerEvent = true;
       return true;
     }
