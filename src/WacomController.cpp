@@ -700,7 +700,7 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 		// |  Pen buttons
 		// Report ID - 0x08
 
-		bool prox = (data[1] ) == 0x81;
+		bool prox = (data[1]  & 0x81) == 0x81;
 		bool rdy = (data[1]) >= 0x80;
 		pen_buttons_ = 0;
 		touch_count_ = 0;
