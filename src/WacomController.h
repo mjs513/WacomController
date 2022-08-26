@@ -59,7 +59,11 @@ public:
   uint16_t getFrameTouchButtons() { return frame_touch_buttons_; }
   uint16_t getFrameButtons() { return frame_buttons_; }
     
-  
+  // Query functions for Tablet capabilities
+  int getMaxTouchCount() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].touch_max : -1; }
+  int getCntPenButtons() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].pen_buttons : -1; }
+  int getCntFrameButtons() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].frame_buttons : -1; }
+  bool getPenSupportsTilt() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].pen_supports_tilt : false; }
 
   int getWheel() {
     return wheel;
@@ -94,12 +98,13 @@ protected:
     uint16_t y_max;
     uint16_t pressure_max;
     uint16_t distance_max;
-	uint8_t report_id;
-	uint8_t report_value;
+  	uint8_t report_id;
+  	uint8_t report_value;
     uint16_t type;
-    uint16_t x_resolution;
-    uint16_t y_resolution;
     uint8_t touch_max;
+    uint8_t pen_buttons;
+    uint8_t frame_buttons;
+    bool pen_supports_tilt;
   } tablet_info_t;
 
   static const tablet_info_t s_tablets_info[];
