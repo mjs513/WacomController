@@ -252,6 +252,8 @@ void WacomController::disconnect_collection(Device_t *dev) {
   if (--collections_claimed == 0) {
     mydevice = NULL;
     tablet_info_index_ = 0xff;
+    sendSetupPacket_ = true;  // make se start over on next connection
+    digitizerDataClear();
   }
 }
 
@@ -860,7 +862,7 @@ bool WacomController::decodeIntuos4100(const uint8_t *data, uint16_t len)
     }
   case 17:
     {
-      frame_buttons_ = data[4];
+      frame_buttons_ = data[1];
       if (debugPrint_) Serial.printf("Press:%u ", frame_buttons_);
       event_type_ = FRAME;
       touch_count_ = 0;

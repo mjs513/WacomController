@@ -17,6 +17,7 @@ public:
     return digitizerEvent;
   }
 
+  operator bool() { return ( (mydevice != nullptr) || (btdevice != nullptr)); } // override as in both USBDriver and in USBHIDInput
   // WHat type of event
   // TOUCH - For those tablets that support using finger(s)
   // PEN - Pen Input
