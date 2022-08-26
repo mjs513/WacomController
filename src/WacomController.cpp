@@ -39,6 +39,43 @@ const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
 //static const struct wacom_features wacom_features_HID_ANY_ID =
 //	{ "Wacom HID", .type = HID_GENERIC, .oVid = HID_ANY_ID, .oPid = HID_ANY_ID };
 
+uint16_t WacomController::idVendor() 
+{
+  if (mydevice != nullptr) return mydevice->idVendor;
+  if (btdevice != nullptr) return btdevice->idVendor;
+  return 0;
+}
+
+uint16_t WacomController::idProduct() 
+{
+  if (mydevice != nullptr) return mydevice->idProduct;
+  if (btdevice != nullptr) return btdevice->idProduct;
+  return 0;
+}
+
+const uint8_t *WacomController::manufacturer()
+{
+  if ((btdevice != nullptr) && (btdevice->strbuf != nullptr)) return &btdevice->strbuf->buffer[btdevice->strbuf->iStrings[strbuf_t::STR_ID_MAN]]; 
+  if ((mydevice != nullptr) && (mydevice->strbuf != nullptr)) return &mydevice->strbuf->buffer[mydevice->strbuf->iStrings[strbuf_t::STR_ID_MAN]]; 
+  return nullptr;
+}
+
+const uint8_t *WacomController::product()
+{
+  if ((mydevice != nullptr) && (mydevice->strbuf != nullptr)) return &mydevice->strbuf->buffer[mydevice->strbuf->iStrings[strbuf_t::STR_ID_PROD]]; 
+  if ((btdevice != nullptr) && (btdevice->strbuf != nullptr)) return &btdevice->strbuf->buffer[btdevice->strbuf->iStrings[strbuf_t::STR_ID_PROD]]; 
+  return nullptr;
+}
+
+const uint8_t *WacomController::serialNumber()
+{
+  if ((mydevice != nullptr) && (mydevice->strbuf != nullptr)) return &mydevice->strbuf->buffer[mydevice->strbuf->iStrings[strbuf_t::STR_ID_SERIAL]]; 
+  if ((btdevice != nullptr) && (btdevice->strbuf != nullptr)) return &btdevice->strbuf->buffer[btdevice->strbuf->iStrings[strbuf_t::STR_ID_SERIAL]]; 
+  return nullptr;
+}
+
+
+
 
 
 void WacomController::init() {

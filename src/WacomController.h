@@ -18,6 +18,13 @@ public:
   }
 
   operator bool() { return ( (mydevice != nullptr) || (btdevice != nullptr)); } // override as in both USBDriver and in USBHIDInput
+  uint16_t idVendor();
+  uint16_t idProduct();
+  const uint8_t *manufacturer();
+  const uint8_t *product();
+  const uint8_t *serialNumber();
+
+  
   // WHat type of event
   // TOUCH - For those tablets that support using finger(s)
   // PEN - Pen Input
@@ -64,6 +71,8 @@ public:
   int getCntPenButtons() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].pen_buttons : -1; }
   int getCntFrameButtons() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].frame_buttons : -1; }
   bool getPenSupportsTilt() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].pen_supports_tilt : false; }
+  int width() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].tablet_width : -1; }
+  int height() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].tablet_height : -1; }
 
   int getWheel() {
     return wheel;
@@ -94,8 +103,8 @@ protected:
   typedef struct {
 	uint16_t idVendor;
     uint16_t idProduct; // Product ID
-    uint16_t x_max;
-    uint16_t y_max;
+    uint16_t tablet_width;
+    uint16_t tablet_height;
     uint16_t pressure_max;
     uint16_t distance_max;
   	uint8_t report_id;

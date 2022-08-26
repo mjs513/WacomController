@@ -120,6 +120,8 @@ int axis_cur[10];
 
 bool BT = 0;
 
+bool show_alternate_view = false;
+
 int user_axis[64];
 uint32_t buttons_prev = 0;
 uint32_t buttons;
@@ -186,12 +188,41 @@ void loop() {
 
   // Now lets try displaying Tablet data
   ProcessTabletData();
+
+  if (Serial.available()) {
+    while (Serial.read() != -1)
+      ;
+    switchView();
+  }
+}
+
+
+void switchView() {
+  show_alternate_view = !show_alternate_view;
+  if (show_alternate_view) Serial.println("Switched to simple graphic mode");
+  else Serial.println("switched back to Text mode");
+  tft.fillScreen(GREEN);
+  tft.updateScreen();
 }
 
 //=============================================================================
 // ProcessTabletData
 //=============================================================================
 void ProcessTabletData() {
+  digi1.debugPrint(false);
+  bool update_screen;
+  if (digi1.available()) {
+    if (show_alternate_view) update_screen = ShowSimpleGraphicScreen();
+    else update_screen = showDataScreen();
+    if (update_screen) tft.updateScreen();  // update the screen now
+    digi1.digitizerDataClear();
+  }
+}
+
+//=============================================================================
+// Show using raw data output.
+//=============================================================================
+bool showDataScreen() {
   int16_t tilt_x_cur = 0,
           tilt_y_cur = 0;
   uint16_t pen_press_cur = 0,
@@ -200,203 +231,253 @@ void ProcessTabletData() {
       touch_y_cur[4] = { 0, 0, 0, 0 };
   bool touch = false;
 
-  digi1.debugPrint(false);
-  if (digi1.available()) {
-    if (new_device_detected) {
-      // Lets display the titles.
-      int16_t x;
-      tft.getCursor(&x, &y_position_after_device_info);
-      tft.setTextColor(YELLOW);
-      tft.printf("Buttons:\nPen (X, Y):\nTouch (X, Y):\n\nPress/Dist:\nTiltXY:\nFPress:\nFTouch:\nAxis:");
-      new_device_detected = false;
-    }
+  if (new_device_detected) {
+    // Lets display the titles.
+    int16_t x;
+    tft.getCursor(&x, &y_position_after_device_info);
+    tft.setTextColor(YELLOW);
+    tft.printf("Buttons:\nPen (X, Y):\nTouch (X, Y):\n\nPress/Dist:\nTiltXY:\nFPress:\nFTouch:\nAxis:");
+    new_device_detected = false;
+  }
 
-    int touch_count = digi1.getTouchCount();
-    int touch_index;
-    uint16_t buttons_bin = digi1.getPenButtons();
-    Serial.println(buttons_bin);
-    bool pen_button[4];
-    bool button_touched[8];
-    bool button_pressed[8];
-    Serial.printf("Digitizer: ");
-    for (int i = 0; i < 4; i++) {
-      pen_button[i] = (buttons_bin >> i) & 0x1;
-      Serial.printf("Pen_Btn%d:%d ", i, pen_button[i]);
-    }
+  int touch_count = digi1.getTouchCount();
+  int touch_index;
+  uint16_t buttons_bin = digi1.getPenButtons();
+  Serial.println(buttons_bin);
+  bool pen_button[4];
+  bool button_touched[8];
+  bool button_pressed[8];
+  Serial.printf("Digitizer: ");
+  for (int i = 0; i < 4; i++) {
+    pen_button[i] = (buttons_bin >> i) & 0x1;
+    Serial.printf("Pen_Btn%d:%d ", i, pen_button[i]);
+  }
 
-    bool something_changed = false;
+  bool something_changed = false;
 
-    //buttons are saved within one byte for all the 8 buttons, here is a decoding example
-    uint16_t button_touch_bin = digi1.getFrameTouchButtons();
-    uint16_t button_press_bin = digi1.getFrameButtons();
-    for (int i = 0; i < 8; i++) {
-      button_touched[i] = (button_touch_bin >> i) & 0x1;
-      button_pressed[i] = (button_press_bin >> i) & 0x1;
-      Serial.printf("Btn%d: T:%d P:%d ", i, button_touched[i], button_pressed[i]);
-    }
+  //buttons are saved within one byte for all the 8 buttons, here is a decoding example
+  uint16_t button_touch_bin = digi1.getFrameTouchButtons();
+  uint16_t button_press_bin = digi1.getFrameButtons();
+  for (int i = 0; i < 8; i++) {
+    button_touched[i] = (button_touch_bin >> i) & 0x1;
+    button_pressed[i] = (button_press_bin >> i) & 0x1;
+    Serial.printf("Btn%d: T:%d P:%d ", i, button_touched[i], button_pressed[i]);
+  }
 
-    WacomController::event_type_t evt = digi1.eventType();   
-    switch (evt) {
-      case WacomController::TOUCH:
-        Serial.print(" Touch:");
-        for (touch_index = 0; touch_index < touch_count; touch_index++) {
-          Serial.printf(" (%d, %d)", digi1.getX(touch_index), digi1.getY(touch_index));
-          touch_x_cur[touch_index] = digi1.getX(touch_index);
-          touch_y_cur[touch_index] = digi1.getY(touch_index);
-        }
-        touch = true;
-        break;
-      case WacomController::PEN:
-        Serial.printf(" Pen: (%d, %d) Pressure: %u Distance: %u", digi1.getX(), digi1.getY(),
-                      digi1.getPenPressure(), digi1.getPenDistance());
-        Serial.printf(" TiltX: %d TiltY: %d", digi1.getPenTiltX(), digi1.getPenTiltY());
-        x_cur = digi1.getX();
-        y_cur = digi1.getY();
-        pen_press_cur = digi1.getPenPressure();
-        pen_dist_cur = digi1.getPenDistance();
-        touch = false;
-        break;
-      case WacomController::FRAME:
-        {
-          //wheel data 0-71
-          Serial.printf(" Whl: %d ", digi1.getFrameWheel());
-          //wheel button binary, no touch functionality
-          Serial.printf(" WhlBtn: %d ", digi1.getFrameWheelButton());
-          something_changed = true;
-        }
-        break;
-      default:
-        Serial.printf(",  X = %u, Y = %u", digi1.getX(), digi1.getY());
-        Serial.print(",  Pressure: = ");
-        Serial.print(",  wheel = ");
-        Serial.print(digi1.getWheel());
-        Serial.print(",  wheelH = ");
-        Serial.print(digi1.getWheelH());
-        break;
-    }
-
-
-    if (buttons_bin != buttons_cur) {
-      buttons_cur = buttons_bin;
-      something_changed = true;
-    }
-    if (x_cur != x_cur_prev) {
-      x_cur_prev = x_cur;
-      something_changed = true;
-    }
-    if (y_cur != y_cur_prev) {
-      y_cur_prev = y_cur;
-      something_changed = true;
-    }
-    if (digi1.getPenPressure() != pen_press_cur) {
-      pen_press_cur = digi1.getPenPressure();
-      something_changed = true;
-    }
-    if (digi1.getPenDistance() != pen_dist_cur) {
-      pen_dist_cur = digi1.getPenPressure();
-      something_changed = true;
-    }
-    if (digi1.getPenTiltX() != tilt_x_cur) {
-      tilt_x_cur = digi1.getPenPressure();
-      something_changed = true;
-    }
-    if (digi1.getPenTiltY() != tilt_y_cur) {
-      tilt_y_cur = digi1.getPenTiltY();
-      something_changed = true;
-    }
-    if (touch) {
+  WacomController::event_type_t evt = digi1.eventType();
+  switch (evt) {
+    case WacomController::TOUCH:
+      Serial.print(" Touch:");
       for (touch_index = 0; touch_index < touch_count; touch_index++) {
+        Serial.printf(" (%d, %d)", digi1.getX(touch_index), digi1.getY(touch_index));
         touch_x_cur[touch_index] = digi1.getX(touch_index);
         touch_y_cur[touch_index] = digi1.getY(touch_index);
       }
-      something_changed = true;
-    }
-    // BUGBUG:: play with some Axis...
-    for (uint8_t i = 0; i < 10; i++) {
-      int axis = digi1.getAxis(i);
-      if (axis != axis_cur[i]) {
-        axis_cur[i] = axis;
+      touch = true;
+      break;
+    case WacomController::PEN:
+      Serial.printf(" Pen: (%d, %d) Pressure: %u Distance: %u", digi1.getX(), digi1.getY(),
+                    digi1.getPenPressure(), digi1.getPenDistance());
+      Serial.printf(" TiltX: %d TiltY: %d", digi1.getPenTiltX(), digi1.getPenTiltY());
+      x_cur = digi1.getX();
+      y_cur = digi1.getY();
+      pen_press_cur = digi1.getPenPressure();
+      pen_dist_cur = digi1.getPenDistance();
+      touch = false;
+      break;
+    case WacomController::FRAME:
+      {
+        //wheel data 0-71
+        Serial.printf(" Whl: %d ", digi1.getFrameWheel());
+        //wheel button binary, no touch functionality
+        Serial.printf(" WhlBtn: %d ", digi1.getFrameWheelButton());
         something_changed = true;
       }
-    }
+      break;
+    default:
+      Serial.printf(",  X = %u, Y = %u", digi1.getX(), digi1.getY());
+      Serial.print(",  Pressure: = ");
+      Serial.print(",  wheel = ");
+      Serial.print(digi1.getWheel());
+      Serial.print(",  wheelH = ");
+      Serial.print(digi1.getWheelH());
+      break;
+  }
 
-    if (something_changed) {
+
+  if (buttons_bin != buttons_cur) {
+    buttons_cur = buttons_bin;
+    something_changed = true;
+  }
+  if (x_cur != x_cur_prev) {
+    x_cur_prev = x_cur;
+    something_changed = true;
+  }
+  if (y_cur != y_cur_prev) {
+    y_cur_prev = y_cur;
+    something_changed = true;
+  }
+  if (digi1.getPenPressure() != pen_press_cur) {
+    pen_press_cur = digi1.getPenPressure();
+    something_changed = true;
+  }
+  if (digi1.getPenDistance() != pen_dist_cur) {
+    pen_dist_cur = digi1.getPenPressure();
+    something_changed = true;
+  }
+  if (digi1.getPenTiltX() != tilt_x_cur) {
+    tilt_x_cur = digi1.getPenPressure();
+    something_changed = true;
+  }
+  if (digi1.getPenTiltY() != tilt_y_cur) {
+    tilt_y_cur = digi1.getPenTiltY();
+    something_changed = true;
+  }
+  if (touch) {
+    for (touch_index = 0; touch_index < touch_count; touch_index++) {
+      touch_x_cur[touch_index] = digi1.getX(touch_index);
+      touch_y_cur[touch_index] = digi1.getY(touch_index);
+    }
+    something_changed = true;
+  }
+  // BUGBUG:: play with some Axis...
+  for (uint8_t i = 0; i < 10; i++) {
+    int axis = digi1.getAxis(i);
+    if (axis != axis_cur[i]) {
+      axis_cur[i] = axis;
+      something_changed = true;
+    }
+  }
+
+  if (something_changed) {
 #define TABLET_DATA_X 100
-      int16_t x, y2;
-      unsigned char line_space = Arial_12.line_space;
-      tft.setTextColor(WHITE, BLACK);
-      //tft.setTextDatum(BR_DATUM);
-      int16_t y = y_position_after_device_info;
+    int16_t x, y2;
+    unsigned char line_space = Arial_12.line_space;
+    tft.setTextColor(WHITE, BLACK);
+    //tft.setTextDatum(BR_DATUM);
+    int16_t y = y_position_after_device_info;
+    tft.setCursor(TABLET_DATA_X, y);
+    for (int i = 0; i < 4; i++) {
+      tft.printf("(%d) ", pen_button[i]);
+    }
+    tft.getCursor(&x, &y2);
+    tft.fillRect(x, y2, 320, line_space, BLACK);
+
+    y += line_space;
+    if (touch == false) {
+      tft.setCursor(TABLET_DATA_X, y);
+      tft.fillRect(x, y2, 320, line_space, BLACK);
+      tft.printf("(%d, %d)", x_cur, y_cur);
+    }
+    y += line_space;
+    if (touch == true) {
+      tft.setCursor(TABLET_DATA_X, y);
+      tft.fillRect(TABLET_DATA_X, y, tft.width(), line_space, BLACK);
+      for (int i = 0; i < touch_count; i++) {
+        if (i == 2) {
+          y += line_space;
+          tft.setCursor(TABLET_DATA_X, y);
+          tft.fillRect(x, y2, 320, line_space, BLACK);
+        }
+        tft.printf("(%d, %d) ", touch_x_cur[i], touch_y_cur[i]);
+      }
+    }
+    if (touch_count < 2) {
+      y += line_space;
+      tft.setCursor(TABLET_DATA_X, y);
+    }
+    y += line_space;
+    tft.setCursor(TABLET_DATA_X, y);
+    tft.fillRect(x, y2, 320, line_space, BLACK);
+    tft.printf("%d, %d", pen_press_cur, pen_dist_cur);
+    y += line_space;
+    tft.fillRect(x, y2, 320, line_space, BLACK);
+    tft.setCursor(TABLET_DATA_X, y);
+    tft.printf("(%d, %d)", tilt_x_cur, tilt_y_cur);
+
+    y += line_space;
+    tft.fillRect(TABLET_DATA_X, y, tft.width(), line_space, BLACK);
+    if (evt == WacomController::FRAME) {
       tft.setCursor(TABLET_DATA_X, y);
       for (int i = 0; i < 4; i++) {
-        tft.printf("(%d) ", pen_button[i]);
+        tft.printf("(%d) ", button_pressed[i]);
       }
-      tft.getCursor(&x, &y2);
-      tft.fillRect(x, y2, 320, line_space, BLACK);
-
-      y += line_space;
-      if (touch == false) {
-        tft.setCursor(TABLET_DATA_X, y);
-        tft.fillRect(x, y2, 320, line_space, BLACK);
-        tft.printf("(%d, %d)", x_cur, y_cur);
-      }
-      y += line_space;
-      if (touch == true) {
-        tft.setCursor(TABLET_DATA_X, y);
-        tft.fillRect(TABLET_DATA_X, y, tft.width(), line_space, BLACK);
-        for (int i = 0; i < touch_count; i++) {
-          if (i == 2) {
-            y += line_space;
-            tft.setCursor(TABLET_DATA_X, y);
-            tft.fillRect(x, y2, 320, line_space, BLACK);
-          }
-          tft.printf("(%d, %d) ", touch_x_cur[i], touch_y_cur[i]);
-        }
-      }
-      if (touch_count < 2) {
-        y += line_space;
-        tft.setCursor(TABLET_DATA_X, y);
-      }
-      y += line_space;
-      tft.setCursor(TABLET_DATA_X, y);
-      tft.fillRect(x, y2, 320, line_space, BLACK);
-      tft.printf("%d, %d", pen_press_cur, pen_dist_cur);
-      y += line_space;
-      tft.fillRect(x, y2, 320, line_space, BLACK);
-      tft.setCursor(TABLET_DATA_X, y);
-      tft.printf("(%d, %d)", tilt_x_cur, tilt_y_cur);
-
-      y += line_space;
-      tft.fillRect(TABLET_DATA_X, y, tft.width(), line_space, BLACK);
-      if (evt ==  WacomController::FRAME) {
-        tft.setCursor(TABLET_DATA_X, y);
-        for (int i = 0; i < 4; i++) {
-          tft.printf("(%d) ", button_pressed[i]);
-        }
-      }
-      y += line_space;
-      tft.fillRect(TABLET_DATA_X, y, tft.width(), line_space, BLACK);
-      if (evt ==  WacomController::FRAME) {
-        tft.setCursor(TABLET_DATA_X, y);
-        for (int i = 0; i < 4; i++) {
-          tft.printf("(%d) ", button_touched[i]);
-        }
-      }
-      //y += line_space; OutputNumberField(TABLET_DATA_X, y, wheel_cur, 320);
-      //y += line_space; OutputNumberField(TABLET_DATA_X, y, wheelH_cur, 320);
-      /*
-      // Output other Axis data
-      for (uint8_t i = 0; i < 9; i += 3) {
-        y += line_space;
-        OutputNumberField(TABLET_DATA_X, y, axis_cur[i], 75);
-        OutputNumberField(TABLET_DATA_X + 75, y, axis_cur[i + 1], 75);
-        OutputNumberField(TABLET_DATA_X + 150, y, axis_cur[i + 2], 75);
-      }
-*/
-      tft.updateScreen();  // update the screen now
     }
-    digi1.digitizerDataClear();
+    y += line_space;
+    tft.fillRect(TABLET_DATA_X, y, tft.width(), line_space, BLACK);
+    if (evt == WacomController::FRAME) {
+      tft.setCursor(TABLET_DATA_X, y);
+      for (int i = 0; i < 4; i++) {
+        tft.printf("(%d) ", button_touched[i]);
+      }
+    }
+    //y += line_space; OutputNumberField(TABLET_DATA_X, y, wheel_cur, 320);
+    //y += line_space; OutputNumberField(TABLET_DATA_X, y, wheelH_cur, 320);
+    /*
+    // Output other Axis data
+    for (uint8_t i = 0; i < 9; i += 3) {
+      y += line_space;
+      OutputNumberField(TABLET_DATA_X, y, axis_cur[i], 75);
+      OutputNumberField(TABLET_DATA_X + 75, y, axis_cur[i + 1], 75);
+      OutputNumberField(TABLET_DATA_X + 150, y, axis_cur[i + 2], 75);
+    }
+*/
   }
+  return something_changed;
+}
+
+//=============================================================================
+// Show using psuedo graphic screen
+//=============================================================================
+#define BUTTON_WIDTH 15
+#define BUTTON_HEIGHT 30
+bool ShowSimpleGraphicScreen() {
+  tft.fillScreen(BLACK);  // clear the screen.
+  tft.setCursor(0, 0);
+  tft.setTextColor(YELLOW);
+  tft.setFont(Arial_12);
+
+  Serial.println("called ShowSimpleGraphics");
+  tft.printf("(%x:%x): ", digi1.idVendor(), digi1.idProduct());
+  const uint8_t *psz;
+  psz = digi1.product();
+  if (psz && *psz) tft.print((const char *)psz);
+  tft.println();
+  int y_start_graphics = tft.getCursorY();
+
+  int cnt_pen_buttons = digi1.getCntPenButtons();
+  int cnt_frame_buttons = digi1.getCntFrameButtons();
+  int button_height;
+
+  if (cnt_frame_buttons >= cnt_pen_buttons) button_height = (tft.height() - y_start_graphics) / cnt_frame_buttons;
+  else button_height = (tft.height() - y_start_graphics) / cnt_pen_buttons;
+  if (button_height > BUTTON_HEIGHT) button_height = BUTTON_HEIGHT;
+
+  Serial.printf("P:%d F:%d H:%d\n", cnt_pen_buttons, cnt_frame_buttons, button_height);
+  // Lets output pen buttons first
+  uint32_t buttons = digi1.getPenButtons();
+  uint16_t x = 5;
+  uint16_t y = tft.height() - button_height - 2;
+  uint8_t index = 0;
+  for (index = 0; index < cnt_pen_buttons; index++) {
+    tft.drawRect(x, y, BUTTON_WIDTH, button_height, GREEN);
+    if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, button_height - 2, YELLOW);
+    buttons >>= 1;
+    y -= button_height;     
+  }
+
+  buttons = digi1.getFrameButtons();
+  x += BUTTON_WIDTH + 5;
+  y = tft.height() - button_height - 2;
+  for (index = 0; index < cnt_frame_buttons; index++) {
+    tft.drawRect(x, y, BUTTON_WIDTH, button_height, GREEN);
+    if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, button_height - 2, RED);
+    buttons >>= 1;
+    y -= button_height;     
+  }
+
+
+  return true;
 }
 
 //=============================================================================
@@ -407,7 +488,7 @@ void UpdateActiveDeviceInfo() {
   for (uint8_t i = 0; i < CNT_DEVICES; i++) {
     if (*drivers[i] != driver_active[i]) {
       if (driver_active[i]) {
-        Serial.printf("*** Device %s - disconnected ***\n", driver_names[i]);        
+        Serial.printf("*** Device %s - disconnected ***\n", driver_names[i]);
         driver_active[i] = false;
 
       } else {
