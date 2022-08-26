@@ -415,7 +415,7 @@ bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
   //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
   uint8_t offset = 0; 
   if (len == 64) {
-    pen_buttons_ = data[1] & 0xf;
+    frame_buttons_ = data[1] & 0xf;
     touch_count_ = 0;
     if (debugPrint_) Serial.printf("BAMBOO PT(64): BTNS: %x", pen_buttons_);
     for (uint8_t i = 0; i < 2; i++) {
@@ -432,7 +432,6 @@ bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
       event_type_ = TOUCH;
 
     } else {
-      frame_buttons_ = pen_buttons_;
       event_type_ = FRAME;
     }
     if (debugPrint_) Serial.println();
@@ -875,6 +874,8 @@ bool WacomController::decodeIntuos4100(const uint8_t *data, uint16_t len)
 void WacomController::digitizerDataClear() {
   digitizerEvent = false;
   pen_buttons_ = 0;
+  frame_buttons_ = 0;
+  frame_touch_buttons_ = 0;
   touch_x_[0] = 0;
   touch_y_[0] = 0;
   touch_count_ = 0;
