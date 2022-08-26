@@ -366,9 +366,9 @@ void WacomController::hid_input_data(uint32_t usage, int32_t value) {
     // Button Page.
     if (usage >= 0x1 && usage <= 0x32) {
       if (value == 0) {
-        buttons &= ~(1 << (usage - 1));
+        pen_buttons_ &= ~(1 << (usage - 1));
       } else {
-        buttons |= (1 << (usage - 1));
+        pen_buttons_ |= (1 << (usage - 1));
       }
     } else
       Serial.printf(">>Not Processed usage:%X page:%x value:%x\n", usage, usage_page, value);
@@ -415,9 +415,9 @@ bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
   //if (debugPrint_) Serial.printf("BAMBOO PT %p, %u\n", data, len);
   uint8_t offset = 0; 
   if (len == 64) {
-    buttons = data[1] & 0xf;
+    pen_buttons_ = data[1] & 0xf;
     touch_count_ = 0;
-    if (debugPrint_) Serial.printf("BAMBOO PT(64): BTNS: %x", buttons);
+    if (debugPrint_) Serial.printf("BAMBOO PT(64): BTNS: %x", pen_buttons_);
     for (uint8_t i = 0; i < 2; i++) {
       bool touch = data[offset + 3] & 0x80;
       if (touch) {
@@ -432,7 +432,7 @@ bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
       event_type_ = TOUCH;
 
     } else {
-      side_press_buttons_ = buttons;
+      frame_buttons_ = pen_buttons_;
       event_type_ = FRAME;
     }
     if (debugPrint_) Serial.println();
@@ -445,14 +445,14 @@ bool WacomController::decodeBamboo_PT(const uint8_t *data, uint16_t len) {
     bool range = (data[1] & 0x80) == 0x80;
     bool prox = (data[1] & 0x40) == 0x40;
     bool rdy = (data[1] & 0x20) == 0x20;
-    buttons = 0;
+    pen_buttons_ = 0;
     touch_count_ = 0;
     pen_pressure_ = 0;
     pen_distance_ = 0;
     if (rdy) {
-      buttons = data[1] & 0xf;
+      pen_buttons_ = data[1] & 0xf;
       pen_pressure_ = __get_unaligned_le16(&data[6]);
-      if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", buttons, pen_pressure_);
+      if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", pen_buttons_, pen_pressure_);
     }
     if (prox) {
         touch_x_[0] = __get_unaligned_le16(&data[2]);
@@ -489,9 +489,9 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
     for (uint8_t i = 0; i < count; i++) {
       if(data[offset] == 0x80) {
         // button message
-        buttons = data[offset+1];
+        pen_buttons_ = data[offset+1];
         touch_changed = true;
-        if (debugPrint_) Serial.printf(" BTNS: %x", buttons);
+        if (debugPrint_) Serial.printf(" BTNS: %x", pen_buttons_);
       } else if ((data[offset] >= 2) && (data[offset] <= 17)) {
         if (data[offset + 1] & 0x80) {
           touch_changed = true;
@@ -519,14 +519,14 @@ bool WacomController::decodeIntuosHT(const uint8_t *data, uint16_t len) {
     bool range = (data[1] & 0x80) == 0x80;
     bool prox = (data[1] & 0x40) == 0x40;
     bool rdy = (data[1] & 0x20) == 0x20;
-    buttons = 0;
+    pen_buttons_ = 0;
     touch_count_ = 0;
     pen_pressure_ = 0;
     pen_distance_ = 0;
     if (rdy) {
-      buttons = data[1] & 0xf;
+      pen_buttons_ = data[1] & 0xf;
       pen_pressure_ = __get_unaligned_le16(&data[6]);
-      if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", buttons, pen_pressure_);
+      if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", pen_buttons_, pen_pressure_);
     }
     if (prox) {
         touch_x_[0] = __get_unaligned_le16(&data[2]);
@@ -566,9 +566,9 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
     for (uint8_t i = 0; i < count; i++) {
       if(data[offset] == 0x80) {
         // button message
-        buttons = data[offset+1];
+        pen_buttons_ = data[offset+1];
         touch_changed = true;
-        if (debugPrint_) Serial.printf(" BTNS: %x", buttons);
+        if (debugPrint_) Serial.printf(" BTNS: %x", pen_buttons_);
       } else if ((data[offset] >= 2) && (data[offset] <= 17)) {
         if (data[offset + 1] & 0x80) {
           touch_changed = true;
@@ -594,7 +594,7 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
 
   } else if (len == 16) {
     if (debugPrint_) Serial.print("INTOSH PT(16): ");
-    buttons = 0;
+    pen_buttons_ = 0;
     touch_count_ = 0;
     pen_pressure_ = 0;
     pen_distance_ = 0;
@@ -623,17 +623,17 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
      if (data[2] > 0) side_wheel_ = data[2] - 128; 
      side_wheel_button_ = data[3];
      //touch the buttons
-     side_touch_buttons_ = data[5];
+     frame_touch_buttons_ = data[5];
      
       //press the buttons
-     side_press_buttons_ = data[4];
+     frame_buttons_ = data[4];
      if (debugPrint_) {
       Serial.println();
       Serial.printf("Wheel: %u ", side_wheel_);
       Serial.println();
       Serial.printf("WheelButton: %u ", side_wheel_button_);
       Serial.println();
-      Serial.printf("Touch:%u Press:%u ", side_touch_buttons_, side_press_buttons_);
+      Serial.printf("Touch:%u Press:%u ", frame_touch_buttons_, frame_buttons_);
       Serial.println();
       
      }
@@ -652,9 +652,9 @@ bool WacomController::decodeIntuos5(const uint8_t *data, uint16_t len)
         pen_pressure_  = (data[6] << 3) | ((data[7] & 0xC0) >> 5) | (data[1] & 1);
         pen_tilt_x_ = (((data[7] << 1) & 0x7e) | (data[8] >> 7)) - 64;
         pen_tilt_y_ = (data[8] & 0x7f) - 64;
-        buttons = data[1] & 0x6;
-        if (pen_pressure_ > 10) buttons |= 1;
-        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u tx:%d ty:%d\n", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_, pen_tilt_x_,pen_tilt_y_);
+        pen_buttons_ = data[1] & 0x6;
+        if (pen_pressure_ > 10) pen_buttons_ |= 1;
+        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u tx:%d ty:%d\n", touch_x_[0], touch_y_[0], pen_buttons_, pen_distance_, pen_pressure_, pen_tilt_x_,pen_tilt_y_);
         event_type_ = PEN;
         digitizerEvent = true;
       } else {
@@ -703,14 +703,14 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
 
 		bool prox = (data[1] ) == 0x81;
 		bool rdy = (data[1]) >= 0x80;
-		buttons = 0;
+		pen_buttons_ = 0;
 		touch_count_ = 0;
 		pen_pressure_ = 0;
 		pen_distance_ = 0;
 		if (rdy) {
-		  buttons = data[1] & 0xf;
+		  pen_buttons_ = data[1] & 0xf;
 		  pen_pressure_ = __get_unaligned_le16(&data[6]);
-		  if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", buttons, pen_pressure_);
+		  if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", pen_buttons_, pen_pressure_);
 		}
 		if (prox) {
 			touch_x_[0] = __get_unaligned_le16(&data[2]);
@@ -735,9 +735,9 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
         //only process buttons, not stylus removal
 	 
 		//press the buttons
-		side_press_buttons_ = data[4];
+		frame_buttons_ = data[4];
 		//if (debugPrint_) {
-		  Serial.printf("Press:%u ", side_press_buttons_);
+		  Serial.printf("Press:%u ", frame_buttons_);
 		  Serial.println();
 		//}
 		event_type_ = FRAME;
@@ -757,7 +757,7 @@ bool WacomController::decodeIntuos4(const uint8_t *data, uint16_t len)
   //bool touch_changed = false;
  if (len == 10) {
     if (debugPrint_) Serial.print("INTUOS 4(10): ");
-    buttons = 0;
+    pen_buttons_ = 0;
     touch_count_ = 0;
     pen_pressure_ = 0;
     pen_distance_ = 0;
@@ -795,9 +795,9 @@ if (data[0] == 0x02) {
         pen_pressure_  = (data[6] << 3) | ((data[7] & 0xC0) >> 5) | (data[1] & 1);
         pen_tilt_x_ = (((data[7] << 1) & 0x7e) | (data[8] >> 7)) - 64;
         pen_tilt_y_ = (data[8] & 0x7f) - 64;
-        buttons = data[1] & 0x6;
-        if (pen_pressure_ > 10) buttons |= 1;
-        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u tx:%d ty:%d\n", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_, pen_tilt_x_,pen_tilt_y_);
+        pen_buttons_ = data[1] & 0x6;
+        if (pen_pressure_ > 10) pen_buttons_ |= 1;
+        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u tx:%d ty:%d\n", touch_x_[0], touch_y_[0], pen_buttons_, pen_distance_, pen_pressure_, pen_tilt_x_,pen_tilt_y_);
         event_type_ = PEN;
         digitizerEvent = true;
       } else {
@@ -810,17 +810,17 @@ if (data[0] == 0x02) {
        if (data[1] > 0) side_wheel_ = data[1] - 128; 
      side_wheel_button_ = data[2];
      //touch the buttons
-   //  side_touch_buttons_ = data[4];
+   //  frame_touch_buttons_ = data[4];
      
       //press the buttons
-     side_press_buttons_ = data[3];
+     frame_buttons_ = data[3];
      if (debugPrint_) {
       Serial.println();
       Serial.printf("Wheel: %u ", side_wheel_);
       Serial.println();
       Serial.printf("WheelButton: %u ", side_wheel_button_);
       Serial.println();
-      Serial.printf("Touch:%u Press:%u ", side_touch_buttons_, side_press_buttons_);
+      Serial.printf("Touch:%u Press:%u ", frame_touch_buttons_, frame_buttons_);
       Serial.println();
       
      }
@@ -849,8 +849,8 @@ bool WacomController::decodeIntuos4100(const uint8_t *data, uint16_t len)
         touch_y_[0] = data[5] | (data[6] << 8) | (data[7] << 16);
         pen_pressure_  = __get_unaligned_le16(&data[8]);
         pen_distance_ = data[6];
-        buttons = data[1] & 0x7;
-        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u", touch_x_[0], touch_y_[0], buttons, pen_distance_, pen_pressure_);
+        pen_buttons_ = data[1] & 0x7;
+        if (debugPrint_) Serial.printf("PEN: (%u, %u) BTNS:%x d:%u p:%u", touch_x_[0], touch_y_[0], pen_buttons_, pen_distance_, pen_pressure_);
         event_type_ = PEN;
         digitizerEvent = true;
       } else {
@@ -861,8 +861,8 @@ bool WacomController::decodeIntuos4100(const uint8_t *data, uint16_t len)
     }
   case 17:
     {
-      side_press_buttons_ = data[4];
-      if (debugPrint_) Serial.printf("Press:%u ", side_press_buttons_);
+      frame_buttons_ = data[4];
+      if (debugPrint_) Serial.printf("Press:%u ", frame_buttons_);
       event_type_ = FRAME;
       touch_count_ = 0;
       digitizerEvent = true;
@@ -874,7 +874,7 @@ bool WacomController::decodeIntuos4100(const uint8_t *data, uint16_t len)
 
 void WacomController::digitizerDataClear() {
   digitizerEvent = false;
-  buttons = 0;
+  pen_buttons_ = 0;
   touch_x_[0] = 0;
   touch_y_[0] = 0;
   touch_count_ = 0;

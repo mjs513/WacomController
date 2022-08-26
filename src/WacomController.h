@@ -44,7 +44,7 @@ public:
 
   // O
   uint32_t getPenButtons() {
-    return buttons;
+    return pen_buttons_;
   }
 
 
@@ -55,8 +55,8 @@ public:
 
   uint16_t getFrameWheel() { return side_wheel_; }
   bool getFrameWheelButton() { return side_wheel_button_;}
-  uint16_t getFrameTouchButtons() { return side_touch_buttons_; }
-  uint16_t getFrameButtons() { return side_press_buttons_; }
+  uint16_t getFrameTouchButtons() { return frame_touch_buttons_; }
+  uint16_t getFrameButtons() { return frame_buttons_; }
     
   
 
@@ -141,7 +141,7 @@ private:
   volatile bool digitizerEvent = false;
   volatile uint8_t hid_input_begin_count_ = 0;
   volatile uint8_t digiAxes_index_ = 0;  
-  uint32_t buttons = 0;
+  uint32_t pen_buttons_ = 0;
   int touch_x_[MAX_TOUCH];
   int touch_y_[MAX_TOUCH];
   int touch_count_ = 0;
@@ -151,8 +151,8 @@ private:
   int16_t pen_tilt_y_ = 0;
   uint16_t side_wheel_;
   bool side_wheel_button_;
-  uint16_t side_touch_buttons_;
-  uint16_t side_press_buttons_;
+  uint16_t frame_touch_buttons_;
+  uint16_t frame_buttons_;
   int wheel = 0;
   int wheelH = 0;
   int digiAxes[16];
