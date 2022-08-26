@@ -24,7 +24,7 @@ public:
   const uint8_t *product();
   const uint8_t *serialNumber();
 
-  
+
   // WHat type of event
   // TOUCH - For those tablets that support using finger(s)
   // PEN - Pen Input
@@ -71,8 +71,8 @@ public:
   int getCntPenButtons() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].pen_buttons : -1; }
   int getCntFrameButtons() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].frame_buttons : -1; }
   bool getPenSupportsTilt() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].pen_supports_tilt : false; }
-  int width() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].tablet_width : -1; }
-  int height() {return (tablet_info_index_ != 0xff)? s_tablets_info[tablet_info_index_].tablet_height : -1; }
+  int width() {return tablet_width_; }
+  int height() {return tablet_height_; }
 
   int getWheel() {
     return wheel;
@@ -177,5 +177,7 @@ private:
   uint16_t idProduct_;
   uint8_t tablet_info_index_ = 0xff;
   event_type_t event_type_ = NONE;
+  int tablet_width_ = -1;
+  int tablet_height_ = -1;
 };
 #endif

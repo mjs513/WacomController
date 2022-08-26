@@ -45,6 +45,8 @@
 #define CENTER ILI9341_t3n::CENTER
 
 #endif
+#define LIGHTGREY 0xC618   /* 192, 192, 192 */
+#define DARKGREY 0x7BEF    /* 128, 128, 128 */
 
 //=============================================================================
 // Connection configuration of ILI9341 LCD TFT
@@ -200,9 +202,20 @@ void loop() {
 void switchView() {
   show_alternate_view = !show_alternate_view;
   if (show_alternate_view) Serial.println("Switched to simple graphic mode");
-  else Serial.println("switched back to Text mode");
-  tft.fillScreen(GREEN);
+  else {
+    Serial.println("switched back to Text mode");
+  }
+  tft.fillScreen(BLACK);
+  tft.setCursor(0, 0);
+  tft.setTextColor(YELLOW);
+  tft.setFont(Arial_12);
+  tft.printf("(%x:%x): ", digi1.idVendor(), digi1.idProduct());
+  const uint8_t *psz;
+  psz = digi1.product();
+  if (psz && *psz) tft.print((const char *)psz);
+  tft.println();
   tft.updateScreen();
+  new_device_detected = true;
 }
 
 //=============================================================================
@@ -456,6 +469,7 @@ bool ShowSimpleGraphicScreen() {
   Serial.printf("P:%d F:%d H:%d\n", cnt_pen_buttons, cnt_frame_buttons, button_height);
   // Lets output pen buttons first
   uint32_t buttons = digi1.getPenButtons();
+  bool pen_touching = buttons & 1;
   uint16_t x = 5;
   uint16_t y = tft.height() - button_height - 2;
   uint8_t index = 0;
@@ -476,6 +490,34 @@ bool ShowSimpleGraphicScreen() {
     y -= button_height;     
   }
 
+  // now lets output a rough tablet image:
+  x += BUTTON_WIDTH + 5;
+  int tab_draw_width = tft.width() - x - 5;
+  int tab_draw_height = tft.height() - y_start_graphics - 5;
+      
+  tft.fillRect(x, y_start_graphics, tab_draw_width, tab_draw_height, DARKGREY);
+  x += 3;
+  y_start_graphics += 3;
+  tab_draw_width -= 6;
+  tab_draw_height -= 6;
+  tft.fillRect(x, y_start_graphics, tab_draw_width, tab_draw_height, LIGHTGREY);
+  tft.setClipRect(x, y_start_graphics, tab_draw_width, tab_draw_height);
+  WacomController::event_type_t evt = digi1.eventType();
+  if (evt == WacomController::PEN) {
+    if (pen_touching) {
+      int pen_x = digi1.getX();
+      int pen_y = digi1.getY();
+      int x_in_tablet = map(pen_x, 0, digi1.width(), 0, tab_draw_width) + x;
+      int y_in_tablet = map(pen_y, 0, digi1.height(), 0, tab_draw_height) + y_start_graphics;
+      Serial.printf("Pen: (%d, %d) W:%u, H:%u -> (%d, %d)\n", pen_x, pen_y, digi1.width(), digi1.height(), x_in_tablet, y_in_tablet);      
+      tft.drawLine(x_in_tablet, y_in_tablet-10, x_in_tablet, y_in_tablet+10, RED);
+      tft.drawLine(x_in_tablet+10, y_in_tablet, x_in_tablet+10, y_in_tablet, RED);
+    }
+    
+  } else if (evt == WacomController::TOUCH) {
+    
+  }
+  tft.setClipRect();
 
   return true;
 }
