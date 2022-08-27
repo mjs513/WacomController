@@ -30,7 +30,7 @@ enum {
 const WacomController::tablet_info_t WacomController::s_tablets_info[] = {
   {0x056A, 0x27 /*"Wacom Intuos5 touch M"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS5,  7, 4, 8, true, 44704, 27940},
   {0x056A, 0xD8 /*"Wacom Bamboo Comic 2FG"*/, 21648, 13700, 1023, 31, 2, 2, BAMBOO_PT, 2, 4, 4, false, 740, 500},
-  {0x056A, 0x302 /*"Wacom Intuos PT S*/, 15200, 9500, 1023, 31,   2, 2, WACOM_PTS, 7, 3, 4, false, 15200, 9500},
+  {0x056A, 0x302 /*"Wacom Intuos PT S*/, 4095, 4095, 1023, 31,   2, 2, WACOM_PTS, 7, 3, 4, false, 4095, 4095},
   {0x256c, 0x006d /* "Huion HS64 and H640P"*/, 32767*2, 32767, 8192, 10, 0, 0, H640P, 0, 3, 6, false, 0, 0 },
   {0x056A, 0xBA /*"Wacom Intuos4 L"*/, 44704, 27940, 2047, 63, 2, 2, INTUOS4L,   7, 4, 8, true },
    // Added for 4100, data to be verified.
