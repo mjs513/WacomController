@@ -323,7 +323,8 @@ bool showDataScreen() {
       break;
   }
 
-
+  Serial.println();
+  
   if (buttons_bin != buttons_cur) {
     buttons_cur = buttons_bin;
     something_changed = true;
@@ -341,11 +342,11 @@ bool showDataScreen() {
     something_changed = true;
   }
   if (digi1.getPenDistance() != pen_dist_cur) {
-    pen_dist_cur = digi1.getPenPressure();
+    pen_dist_cur = digi1.getPenDistance();
     something_changed = true;
   }
   if (digi1.getPenTiltX() != tilt_x_cur) {
-    tilt_x_cur = digi1.getPenPressure();
+    tilt_x_cur = digi1.getPenTiltX();
     something_changed = true;
   }
   if (digi1.getPenTiltY() != tilt_y_cur) {
