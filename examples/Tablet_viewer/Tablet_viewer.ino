@@ -485,6 +485,7 @@ bool ShowSimpleGraphicScreen() {
   uint16_t x = 5;
   uint16_t y = tft.height() - g_button_height - 2;
   uint8_t index = 0;
+  bool buttons_changed = false;
 
   if (g_redraw_all) { 
     g_pen_buttons_prev = buttons;
@@ -496,6 +497,7 @@ bool ShowSimpleGraphicScreen() {
       y -= g_button_height;     
     }
   } else if (buttons != g_pen_buttons_prev) { 
+    buttons_changed = true;
     uint32_t buttons_prev = g_pen_buttons_prev;
     g_pen_buttons_prev = buttons;
     for (index = 0; index < g_cnt_pen_buttons; index++) {
@@ -523,6 +525,7 @@ bool ShowSimpleGraphicScreen() {
       y -= g_button_height;     
     }
   } else if (buttons != g_frame_buttons_prev) { 
+    buttons_changed = true;
     uint32_t buttons_prev = g_frame_buttons_prev;
     g_frame_buttons_prev = buttons;
     for (index = 0; index < g_cnt_frame_buttons; index++) {
@@ -542,6 +545,8 @@ bool ShowSimpleGraphicScreen() {
   int tab_draw_height = tft.height() - y_start_graphics - 5;
       
   if (g_redraw_all) tft.fillRect(x, y_start_graphics, tab_draw_width, tab_draw_height, DARKGREY);
+  else if (buttons_changed)tft.updateScreen();
+
   x += 3;
   y_start_graphics += 3;
   tab_draw_width -= 6;
