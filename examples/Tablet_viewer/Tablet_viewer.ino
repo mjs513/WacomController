@@ -129,7 +129,7 @@ int user_axis[64];
 uint32_t buttons_prev = 0;
 uint32_t buttons;
 
-bool new_device_detected = false;
+bool g_redraw_all = false;
 int16_t y_position_after_device_info = 0;
 
 //=============================================================================
@@ -177,6 +177,7 @@ void setup() {
   tft.setCursor(CENTER, CENTER);
   tft.println("Waiting for Device...");
   tft.useFrameBuffer(true);
+  tft.updateChangedAreasOnly(true);
 }
 
 
@@ -216,7 +217,7 @@ void switchView() {
   if (psz && *psz) tft.print((const char *)psz);
   tft.println();
   tft.updateScreen();
-  new_device_detected = true;
+  g_redraw_all = true;
 }
 
 //=============================================================================
@@ -226,9 +227,13 @@ void ProcessTabletData() {
   digi1.debugPrint(false);
   bool update_screen;
   if (digi1.available()) {
+    elapsedMicros em;
     if (show_alternate_view) update_screen = ShowSimpleGraphicScreen();
     else update_screen = showDataScreen();
-    if (update_screen) tft.updateScreen();  // update the screen now
+    if (update_screen) {
+      tft.updateScreen();  // update the screen now
+      Serial.println(em);
+    }
     digi1.digitizerDataClear();
   }
 }
@@ -245,13 +250,13 @@ bool showDataScreen() {
       touch_y_cur[4] = { 0, 0, 0, 0 };
   bool touch = false;
 
-  if (new_device_detected) {
+  if (g_redraw_all) {
     // Lets display the titles.
     int16_t x;
     tft.getCursor(&x, &y_position_after_device_info);
     tft.setTextColor(YELLOW);
     tft.printf("Buttons:\nPen (X, Y):\nTouch (X, Y):\n\nPress/Dist:\nTiltXY:\nFPress:\nFTouch:\nAxis:");
-    new_device_detected = false;
+    g_redraw_all = false;
   }
 
   int touch_count = digi1.getTouchCount();
@@ -445,63 +450,116 @@ bool showDataScreen() {
 //=============================================================================
 #define BUTTON_WIDTH 15
 #define BUTTON_HEIGHT 30
+
+int g_cnt_pen_buttons; 
+int g_cnt_frame_buttons;
+int g_button_height;
+uint32_t g_pen_buttons_prev;
+uint32_t g_frame_buttons_prev;
+
+int tablet_changed_area_x_min = 0;
+int tablet_changed_area_x_max = 0;
+int tablet_changed_area_y_min = 0;
+int tablet_changed_area_y_max = 0;
+
 bool ShowSimpleGraphicScreen() {
-  tft.fillScreen(BLACK);  // clear the screen.
-  tft.setCursor(0, 0);
-  tft.setTextColor(YELLOW);
-  tft.setFont(Arial_12);
+  if (g_redraw_all) {
+    // Lets display the titles.
+    y_position_after_device_info = tft.getCursorY();
+    tft.setTextColor(YELLOW);
+    g_cnt_pen_buttons = digi1.getCntPenButtons();
+    g_cnt_frame_buttons = digi1.getCntFrameButtons();
 
-  tft.printf("(%x:%x): ", digi1.idVendor(), digi1.idProduct());
-  const uint8_t *psz;
-  psz = digi1.product();
-  if (psz && *psz) tft.print((const char *)psz);
-  tft.println();
-  int y_start_graphics = tft.getCursorY();
+    if (g_cnt_frame_buttons >= g_cnt_pen_buttons) g_button_height = (tft.height() - y_position_after_device_info) / g_cnt_frame_buttons;
+    else g_button_height = (tft.height() - y_position_after_device_info) / g_cnt_pen_buttons;
+    if (g_button_height > BUTTON_HEIGHT) g_button_height = BUTTON_HEIGHT;
+  }
 
-  int cnt_pen_buttons = digi1.getCntPenButtons();
-  int cnt_frame_buttons = digi1.getCntFrameButtons();
-  int button_height;
+  int y_start_graphics = y_position_after_device_info;
 
-  if (cnt_frame_buttons >= cnt_pen_buttons) button_height = (tft.height() - y_start_graphics) / cnt_frame_buttons;
-  else button_height = (tft.height() - y_start_graphics) / cnt_pen_buttons;
-  if (button_height > BUTTON_HEIGHT) button_height = BUTTON_HEIGHT;
 
-  //Serial.printf("P:%d F:%d H:%d\n", cnt_pen_buttons, cnt_frame_buttons, button_height);
+  //Serial.printf("P:%d F:%d H:%d\n", g_cnt_pen_buttons, g_cnt_frame_buttons, g_button_height);
   // Lets output pen buttons first
   uint32_t buttons = digi1.getPenButtons();
   bool pen_touching = buttons & 1;
   uint16_t x = 5;
-  uint16_t y = tft.height() - button_height - 2;
+  uint16_t y = tft.height() - g_button_height - 2;
   uint8_t index = 0;
-  for (index = 0; index < cnt_pen_buttons; index++) {
-    tft.drawRect(x, y, BUTTON_WIDTH, button_height, GREEN);
-    if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, button_height - 2, BLUE);
-    buttons >>= 1;
-    y -= button_height;     
+
+  if (g_redraw_all) { 
+    g_pen_buttons_prev = buttons;
+    for (index = 0; index < g_cnt_pen_buttons; index++) {
+      tft.drawRect(x, y, BUTTON_WIDTH, g_button_height, GREEN);
+      if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, g_button_height - 2, BLUE);
+      else tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, g_button_height - 2, BLACK);
+      buttons >>= 1;
+      y -= g_button_height;     
+    }
+  } else if (buttons != g_pen_buttons_prev) { 
+    uint32_t buttons_prev = g_pen_buttons_prev;
+    g_pen_buttons_prev = buttons;
+    for (index = 0; index < g_cnt_pen_buttons; index++) {
+      if ((buttons & 1) != (buttons_prev & 1)) {
+        if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, g_button_height - 2, BLUE);
+        else tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, g_button_height - 2, BLACK);
+      }
+      buttons >>= 1;
+      buttons_prev  >>= 1;
+      y -= g_button_height;     
+    }
   }
 
   buttons = digi1.getFrameButtons();
   x += BUTTON_WIDTH + 5;
-  y = tft.height() - button_height - 2;
-  for (index = 0; index < cnt_frame_buttons; index++) {
-    tft.drawRect(x, y, BUTTON_WIDTH, button_height, GREEN);
-    if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, button_height - 2, RED);
-    buttons >>= 1;
-    y -= button_height;     
-  }
+  y = tft.height() - g_button_height - 2;
+  if (g_redraw_all) { 
+    //uint32_t butprev = g_frame_buttons_prev
+    g_frame_buttons_prev = buttons;
+    for (index = 0; index < g_cnt_frame_buttons; index++) {
+      tft.drawRect(x, y, BUTTON_WIDTH, g_button_height, GREEN);
+      if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, g_button_height - 2, RED);
+      else tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, g_button_height - 2, BLACK);
+      buttons >>= 1;
+      y -= g_button_height;     
+    }
+  } else if (buttons != g_frame_buttons_prev) { 
+    uint32_t buttons_prev = g_frame_buttons_prev;
+    g_frame_buttons_prev = buttons;
+    for (index = 0; index < g_cnt_frame_buttons; index++) {
+      if ((buttons & 1) != (buttons_prev & 1)) {
+        if (buttons & 1) tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, g_button_height - 2, RED);
+        else tft.fillRect(x + 1, y + 1, BUTTON_WIDTH - 2, g_button_height - 2, BLACK);
+      }
+      buttons >>= 1;
+      buttons_prev  >>= 1;
+      y -= g_button_height;     
+    }
+  }    
 
   // now lets output a rough tablet image:
   x += BUTTON_WIDTH + 5;
   int tab_draw_width = tft.width() - x - 5;
   int tab_draw_height = tft.height() - y_start_graphics - 5;
       
-  tft.fillRect(x, y_start_graphics, tab_draw_width, tab_draw_height, DARKGREY);
+  if (g_redraw_all) tft.fillRect(x, y_start_graphics, tab_draw_width, tab_draw_height, DARKGREY);
   x += 3;
   y_start_graphics += 3;
   tab_draw_width -= 6;
   tab_draw_height -= 6;
-  tft.fillRect(x, y_start_graphics, tab_draw_width, tab_draw_height, LIGHTGREY);
+  if (g_redraw_all) tft.fillRect(x, y_start_graphics, tab_draw_width, tab_draw_height, LIGHTGREY);
   tft.setClipRect(x, y_start_graphics, tab_draw_width, tab_draw_height);
+
+  // if we changed something in previous run, than fill it back   
+  if ((tablet_changed_area_x_min < tft.width()) && !g_redraw_all) 
+    tft.fillRect(tablet_changed_area_x_min, tablet_changed_area_y_min, tablet_changed_area_x_max - tablet_changed_area_x_min + 1,
+          tablet_changed_area_y_max - tablet_changed_area_y_min + 1, LIGHTGREY);
+  
+  tablet_changed_area_x_min = tft.width();
+  tablet_changed_area_x_max = 0;
+  tablet_changed_area_y_min = tft.height();
+  tablet_changed_area_y_max = 0;
+
+
   WacomController::event_type_t evt = digi1.eventType();
   if (evt == WacomController::PEN) {
     if (pen_touching) {
@@ -512,6 +570,10 @@ bool ShowSimpleGraphicScreen() {
       //Serial.printf("Pen: (%d, %d) W:%u, H:%u -> (%d, %d)\n", pen_x, pen_y, digi1.width(), digi1.height(), x_in_tablet, y_in_tablet);      
       tft.fillRect(x_in_tablet-1, y_in_tablet-10, 3, 21, BLUE);
       tft.fillRect(x_in_tablet-10, y_in_tablet-1, 21, 3, BLUE);
+      if ((x_in_tablet - 10) < tablet_changed_area_x_min) tablet_changed_area_x_min = x_in_tablet - 10;
+      if ((x_in_tablet + 10) > tablet_changed_area_x_max) tablet_changed_area_x_max = x_in_tablet + 10;
+      if ((y_in_tablet - 10) < tablet_changed_area_y_min) tablet_changed_area_y_min = y_in_tablet - 10;
+      if ((y_in_tablet + 10) > tablet_changed_area_y_max) tablet_changed_area_y_max = y_in_tablet + 10;
     }
     
   } else if (evt == WacomController::TOUCH) {
@@ -524,11 +586,15 @@ bool ShowSimpleGraphicScreen() {
       //Serial.printf("Pen: (%d, %d) W:%u, H:%u -> (%d, %d)\n", finger_x, finger_y, digi1.width(), digi1.height(), x_in_tablet, y_in_tablet);      
       tft.fillRect(x_in_tablet-1, y_in_tablet-10, 3, 21, RED);
       tft.fillRect(x_in_tablet-10, y_in_tablet-1, 21, 3, RED);
-      
+      if ((x_in_tablet - 10) < tablet_changed_area_x_min) tablet_changed_area_x_min = x_in_tablet - 10;
+      if ((x_in_tablet + 10) > tablet_changed_area_x_max) tablet_changed_area_x_max = x_in_tablet + 10;
+      if ((y_in_tablet - 10) < tablet_changed_area_y_min) tablet_changed_area_y_min = y_in_tablet - 10;
+      if ((y_in_tablet + 10) > tablet_changed_area_y_max) tablet_changed_area_y_max = y_in_tablet + 10;      
     }
     
   }
   tft.setClipRect();
+  g_redraw_all = false;
 
   return true;
 }
@@ -545,7 +611,7 @@ void UpdateActiveDeviceInfo() {
         driver_active[i] = false;
 
       } else {
-        new_device_detected = true;
+        g_redraw_all = true;
         Serial.printf("*** Device %s %x:%x - connected ***\n", driver_names[i], drivers[i]->idVendor(), drivers[i]->idProduct());
         driver_active[i] = true;
         tft.fillScreen(BLACK);  // clear the screen.
@@ -579,7 +645,7 @@ void UpdateActiveDeviceInfo() {
           tft.updateScreen();  // update the screen now
         }
       } else {
-        new_device_detected = true;
+        g_redraw_all = true;
         Serial.printf("*** HID Device %s %x:%x - connected ***\n", hid_driver_names[i], hiddrivers[i]->idVendor(), hiddrivers[i]->idProduct());
         hid_driver_active[i] = true;
         tft.fillScreen(BLACK);  // clear the screen.
@@ -613,9 +679,9 @@ void OutputNumberField(int16_t x, int16_t y, int val, int16_t field_width) {
 
 
 void MaybeSetupTextScrollArea() {
-  if (new_device_detected) {
+  if (g_redraw_all) {
     BT = 0;
-    new_device_detected = false;
+    g_redraw_all = false;
   }
   if (BT == 0) {
     tft.enableScroll();
