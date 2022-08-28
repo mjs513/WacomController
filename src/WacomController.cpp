@@ -838,6 +838,8 @@ bool WacomController::decodeH640P(const uint8_t *data, uint16_t len) {
   		if (rdy) {
   		  pen_buttons_ = data[1] & 0xf;
   		  pen_pressure_ = __get_unaligned_le16(&data[6]);
+        pen_tilt_x_ = data[10];
+        pen_tilt_y_ = data[11];
   		  if (debugPrint_) Serial.printf(" BTNS: %x Pressure: %u", pen_buttons_, pen_pressure_);
   		}
   		if (prox) {
