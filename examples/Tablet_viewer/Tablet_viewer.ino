@@ -132,6 +132,23 @@ uint32_t buttons;
 bool g_redraw_all = false;
 int16_t y_position_after_device_info = 0;
 
+//-----------------------------------------------------------------------------
+// Remember some stuff between calls
+//-----------------------------------------------------------------------------
+int g_cnt_pen_buttons; 
+int g_cnt_frame_buttons;
+int g_button_height;
+uint32_t g_pen_buttons_prev;
+uint32_t g_frame_buttons_prev;
+bool g_switch_view = false;
+
+int tablet_changed_area_x_min = 0;
+int tablet_changed_area_x_max = 0;
+int tablet_changed_area_y_min = 0;
+int tablet_changed_area_y_max = 0;
+
+
+
 //=============================================================================
 // Setup
 //=============================================================================
@@ -224,7 +241,12 @@ void switchView() {
 // ProcessTabletData
 //=============================================================================
 void ProcessTabletData() {
-  digi1.debugPrint(false);
+  if (g_switch_view) {
+    switchView();
+    g_switch_view = false;
+  }
+
+  digi1.debugPrint(true);
   bool update_screen;
   if (digi1.available()) {
     elapsedMicros em;
@@ -262,6 +284,7 @@ bool showDataScreen() {
   int touch_count = digi1.getTouchCount();
   int touch_index;
   uint16_t buttons_bin = digi1.getPenButtons();
+
   Serial.println(buttons_bin);
   bool pen_button[4];
   bool button_touched[8];
@@ -377,16 +400,15 @@ bool showDataScreen() {
     //tft.setTextDatum(BR_DATUM);
     int16_t y = y_position_after_device_info;
     tft.setCursor(TABLET_DATA_X, y);
+    tft.fillRect(TABLET_DATA_X, y, 320, line_space, BLACK);
     for (int i = 0; i < 4; i++) {
       tft.printf("(%d) ", pen_button[i]);
     }
-    tft.getCursor(&x, &y2);
-    tft.fillRect(x, y2, 320, line_space, BLACK);
 
     y += line_space;
     if (touch == false) {
       tft.setCursor(TABLET_DATA_X, y);
-      tft.fillRect(x, y2, 320, line_space, BLACK);
+      tft.fillRect(TABLET_DATA_X, y, 320, line_space, BLACK);
       tft.printf("(%d, %d)", x_cur, y_cur);
     }
     y += line_space;
@@ -408,10 +430,10 @@ bool showDataScreen() {
     }
     y += line_space;
     tft.setCursor(TABLET_DATA_X, y);
-    tft.fillRect(x, y2, 320, line_space, BLACK);
+    tft.fillRect(TABLET_DATA_X, y, 320, line_space, BLACK);
     tft.printf("%d, %d", pen_press_cur, pen_dist_cur);
     y += line_space;
-    tft.fillRect(x, y2, 320, line_space, BLACK);
+    tft.fillRect(TABLET_DATA_X, y, 320, line_space, BLACK);
     tft.setCursor(TABLET_DATA_X, y);
     tft.printf("(%d, %d)", tilt_x_cur, tilt_y_cur);
 
@@ -443,6 +465,11 @@ bool showDataScreen() {
     }
 */
   }
+  
+  g_switch_view = ((g_pen_buttons_prev & 0x3) == 3) && ((buttons_bin & 0x1) == 0);
+  g_pen_buttons_prev = buttons_bin;
+  g_frame_buttons_prev = button_touch_bin;
+
   return something_changed;
 }
 
@@ -452,16 +479,6 @@ bool showDataScreen() {
 #define BUTTON_WIDTH 15
 #define BUTTON_HEIGHT 30
 
-int g_cnt_pen_buttons; 
-int g_cnt_frame_buttons;
-int g_button_height;
-uint32_t g_pen_buttons_prev;
-uint32_t g_frame_buttons_prev;
-
-int tablet_changed_area_x_min = 0;
-int tablet_changed_area_x_max = 0;
-int tablet_changed_area_y_min = 0;
-int tablet_changed_area_y_max = 0;
 
 bool ShowSimpleGraphicScreen() {
   if (g_redraw_all) {
@@ -499,6 +516,7 @@ bool ShowSimpleGraphicScreen() {
     }
   } else if (buttons != g_pen_buttons_prev) { 
     buttons_changed = true;
+    g_switch_view = ((g_pen_buttons_prev & 0x3) == 3) && ((buttons & 0x1) == 0);
     uint32_t buttons_prev = g_pen_buttons_prev;
     g_pen_buttons_prev = buttons;
     for (index = 0; index < g_cnt_pen_buttons; index++) {

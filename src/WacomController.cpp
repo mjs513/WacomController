@@ -101,6 +101,7 @@ hidclaim_t WacomController::claim_collection(USBHIDParser *driver, Device_t *dev
         Serial.printf("set tablet_info_index_ = %u\n", i);
         tablet_width_ = s_tablets_info[i].tablet_width;
         tablet_height_ = s_tablets_info[i].tablet_height;
+        cnt_frame_buttons_ = s_tablets_info[i].frame_buttons;
         break;
       }
     }
@@ -268,11 +269,13 @@ bool WacomController::hid_process_control(const Transfer_t *transfer) {
         tablet_height_ =  __get_unaligned_le16(&buffer_[5]);
         uint16_t PH_PRESSURE_LM = __get_unaligned_le16(&buffer_[8]);
         uint16_t resolution = __get_unaligned_le16(&buffer_[10]);
+        cnt_frame_buttons_ = buffer_[13];
 
         Serial.printf("Max X: %d\n", tablet_width_);
         Serial.printf("Max Y: %d\n", tablet_height_);
         Serial.printf("Max pressure: %d\n", PH_PRESSURE_LM);
         Serial.printf("Resolution: %d\n\n", resolution);
+        Serial.printf("Frame Buttons: %d\n\n", cnt_frame_buttons_);
       }
         if (desc_len == 0) Serial.println("Maybe send other version?");
       break;
